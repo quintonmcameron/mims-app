@@ -1,0 +1,980 @@
+.mims-shell {
+  --bg: #0b0b0f;
+  --bg-2: #101017;
+  --surface: #15151d;
+  --surface-2: #1b1b25;
+  --elevated: #22222d;
+  --border: #26262f;
+  --border-2: #33333e;
+  --text: #ffffff;
+  --text-2: #b5b5c2;
+  --text-3: #6f6f7e;
+  --gold: #e8c57a;
+  --gold-2: #c9a05e;
+  --coral: #ff7a66;
+  --success: #5ee2a0;
+  --warn: #ffb547;
+  --danger: #ff5c5c;
+  --grad: linear-gradient(135deg, #e8c57a 0%, #ff7a66 100%);
+  --grad-soft: linear-gradient(
+    135deg,
+    rgba(232, 197, 122, 0.18) 0%,
+    rgba(255, 122, 102, 0.18) 100%
+  );
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-lg: 22px;
+  --shadow-1:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 20px 60px rgba(0, 0, 0, 0.55);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(
+      1200px 600px at 80% -10%,
+      rgba(255, 122, 102, 0.1),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at -10% 10%,
+      rgba(232, 197, 122, 0.07),
+      transparent 60%
+    ),
+    var(--bg);
+  color: var(--text);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI",
+    system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+  display: flex;
+  justify-content: center;
+}
+
+.mims-shell *,
+.mims-shell *::before,
+.mims-shell *::after {
+  box-sizing: border-box;
+}
+
+@media (min-width: 500px) {
+  .mims-shell {
+    padding: 24px 0;
+    align-items: flex-start;
+  }
+}
+
+.mims-shell .app {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100vh;
+  background: var(--bg);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgba(255, 255, 255, 0.04);
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+@media (min-width: 500px) {
+  .mims-shell .app {
+    min-height: calc(100vh - 48px);
+    max-height: 920px;
+    border-radius: 36px;
+    overflow: hidden;
+    box-shadow: var(--shadow-2);
+    border: 1px solid var(--border);
+  }
+}
+
+.mims-shell .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(11, 11, 15, 0.75);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 56px;
+}
+
+.mims-shell .topbar .title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.mims-shell .topbar .left,
+.mims-shell .topbar .right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 36px;
+}
+
+.mims-shell .icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.mims-shell .icon-btn:hover {
+  color: var(--text);
+}
+
+.mims-shell .icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mims-shell .scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 20px calc(110px + var(--safe-bottom));
+  scroll-behavior: smooth;
+}
+
+.mims-shell .tabbar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(11, 11, 15, 0.85);
+  border-top: 1px solid var(--border);
+  padding: 10px 14px calc(14px + var(--safe-bottom));
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.mims-shell .tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border-radius: 12px;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  transition: color 0.15s ease;
+}
+
+.mims-shell .tab svg {
+  width: 22px;
+  height: 22px;
+}
+
+.mims-shell .tab.active {
+  color: var(--text);
+}
+
+.mims-shell .tab.active .tab-ico {
+  background: var(--grad-soft);
+  color: var(--gold);
+}
+
+.mims-shell .tab-ico {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+
+.mims-shell h1,
+.mims-shell h2,
+.mims-shell h3,
+.mims-shell h4 {
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.mims-shell h1 {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.mims-shell h2 {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.mims-shell h3 {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.mims-shell .eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.mims-shell .muted {
+  color: var(--text-2);
+}
+
+.mims-shell .dim {
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.mims-shell .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  font-weight: 600;
+  font-size: 15px;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  transition:
+    transform 0.12s ease,
+    opacity 0.15s ease,
+    background 0.15s ease;
+}
+
+.mims-shell .btn:active {
+  transform: scale(0.98);
+}
+
+.mims-shell .btn-primary {
+  background: var(--grad);
+  color: #1a1306;
+}
+
+.mims-shell .btn-primary:hover {
+  opacity: 0.95;
+}
+
+.mims-shell .btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.mims-shell .btn-ghost {
+  background: transparent;
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+
+.mims-shell .btn-row {
+  display: flex;
+  gap: 10px;
+}
+
+.mims-shell .btn-row > .btn {
+  flex: 1;
+}
+
+.mims-shell .card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: var(--shadow-1);
+}
+
+.mims-shell .card + .card {
+  margin-top: 12px;
+}
+
+.mims-shell .card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mims-shell .field {
+  margin-bottom: 14px;
+}
+
+.mims-shell .field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+
+.mims-shell .field input,
+.mims-shell .field select,
+.mims-shell .field textarea {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  color: var(--text);
+  font-size: 15px;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.mims-shell .field input:focus,
+.mims-shell .field select:focus,
+.mims-shell .field textarea:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+
+.mims-shell .field textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.mims-shell .helper {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 6px;
+}
+
+.mims-shell .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mims-shell .chip {
+  padding: 9px 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.mims-shell .chip.active {
+  border-color: var(--gold);
+  background: var(--grad-soft);
+  color: var(--gold);
+}
+
+.mims-shell .seg {
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.mims-shell .seg button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font-weight: 500;
+  font-size: 13px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.mims-shell .seg button.active {
+  background: var(--elevated);
+  color: var(--text);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.mims-shell .logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.mims-shell .logo-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--grad);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1a1306;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.mims-shell .screen {
+  display: none;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.mims-shell .screen.active {
+  display: flex;
+}
+
+.mims-shell .screen-pad {
+  padding: 16px 20px calc(110px + var(--safe-bottom));
+  flex: 1;
+  overflow-y: auto;
+}
+
+.mims-shell .screen-pad.no-pad-bottom {
+  padding-bottom: 24px;
+}
+
+.mims-shell .welcome-hero {
+  padding: 80px 24px 40px;
+  text-align: center;
+  background:
+    radial-gradient(
+      400px 200px at 50% 0%,
+      rgba(255, 122, 102, 0.18),
+      transparent 70%
+    ),
+    radial-gradient(
+      500px 300px at 50% 30%,
+      rgba(232, 197, 122, 0.1),
+      transparent 70%
+    );
+}
+
+.mims-shell .welcome-mark {
+  width: 76px;
+  height: 76px;
+  border-radius: 22px;
+  background: var(--grad);
+  margin: 0 auto 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1a1306;
+  font-weight: 800;
+  font-size: 36px;
+  letter-spacing: -0.04em;
+  box-shadow:
+    0 30px 60px rgba(255, 122, 102, 0.25),
+    0 10px 30px rgba(232, 197, 122, 0.2);
+}
+
+.mims-shell .welcome-hero h1 {
+  font-size: 34px;
+  background: linear-gradient(180deg, #ffffff 0%, #c9c9d4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.mims-shell .welcome-features {
+  padding: 0 20px;
+  display: grid;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.mims-shell .feature {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.mims-shell .feature .ico {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--grad-soft);
+  color: var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mims-shell .feature .ico svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mims-shell .feature h4 {
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.mims-shell .feature p {
+  font-size: 13px;
+  color: var(--text-2);
+  margin: 0;
+}
+
+.mims-shell .score-circle {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  margin: 0 auto 8px;
+}
+
+.mims-shell .score-circle svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.mims-shell .score-circle .score-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.mims-shell .score-circle .score-num {
+  font-size: 56px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.mims-shell .score-circle .score-cap {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--text-3);
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+
+.mims-shell .big-num {
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  line-height: 1;
+}
+
+.mims-shell .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+}
+
+.mims-shell .badge.gold {
+  color: var(--gold);
+  border-color: rgba(232, 197, 122, 0.3);
+  background: rgba(232, 197, 122, 0.06);
+}
+
+.mims-shell .badge.green {
+  color: var(--success);
+  border-color: rgba(94, 226, 160, 0.3);
+  background: rgba(94, 226, 160, 0.06);
+}
+
+.mims-shell .badge.warn {
+  color: var(--warn);
+  border-color: rgba(255, 181, 71, 0.3);
+  background: rgba(255, 181, 71, 0.06);
+}
+
+.mims-shell .badge.red {
+  color: var(--danger);
+  border-color: rgba(255, 92, 92, 0.3);
+  background: rgba(255, 92, 92, 0.06);
+}
+
+.mims-shell .progress {
+  height: 6px;
+  background: var(--surface);
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.mims-shell .progress > div {
+  height: 100%;
+  background: var(--grad);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.mims-shell .tactic {
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.mims-shell .tactic + .tactic {
+  margin-top: 10px;
+}
+
+.mims-shell .tactic .source {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.mims-shell .tactic h4 {
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+.mims-shell .tactic .quote {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-left: 2px solid var(--gold);
+  color: var(--text-2);
+  font-style: italic;
+  font-size: 14px;
+  background: rgba(232, 197, 122, 0.04);
+  border-radius: 8px;
+}
+
+.mims-shell .steps {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  counter-reset: s;
+}
+
+.mims-shell .steps li {
+  counter-increment: s;
+  padding: 8px 0 8px 30px;
+  position: relative;
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+.mims-shell .steps li::before {
+  content: counter(s);
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 20px;
+  height: 20px;
+  background: var(--grad-soft);
+  color: var(--gold);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.mims-shell .deal-item {
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  cursor: pointer;
+  margin-bottom: 10px;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.mims-shell .deal-item:hover {
+  border-color: var(--border-2);
+}
+
+.mims-shell .deal-item .avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.mims-shell .deal-item h4 {
+  font-size: 15px;
+}
+
+.mims-shell .deal-item .meta {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.mims-shell .doc-preview {
+  background: #fafaf7;
+  color: #1a1a1f;
+  border-radius: 16px;
+  padding: 22px;
+  font-family:
+    "SF Pro Text",
+    -apple-system,
+    system-ui,
+    sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.mims-shell .doc-preview h2 {
+  color: #1a1a1f;
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+
+.mims-shell .doc-preview .doc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e6e2d8;
+}
+
+.mims-shell .doc-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+}
+
+.mims-shell .doc-preview th,
+.mims-shell .doc-preview td {
+  text-align: left;
+  padding: 8px 4px;
+  font-size: 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.mims-shell .doc-preview th {
+  color: #6f6f6f;
+  font-weight: 600;
+}
+
+.mims-shell .doc-preview .total {
+  border-top: 2px solid #1a1a1f;
+  padding-top: 12px;
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.mims-shell .doc-preview .label-sm {
+  font-size: 10px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+}
+
+.mims-shell .loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 24px;
+  min-height: 480px;
+}
+
+.mims-shell .spinner {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent,
+    var(--gold),
+    var(--coral),
+    transparent
+  );
+  mask: radial-gradient(circle 22px at center, transparent 99%, black 100%);
+  -webkit-mask: radial-gradient(circle 22px at center, transparent 99%, black 100%);
+  animation: mims-spin 1.2s linear infinite;
+  margin-bottom: 22px;
+}
+
+@keyframes mims-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.mims-shell .loading-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  width: 100%;
+  max-width: 280px;
+}
+
+.mims-shell .loading-steps li {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mims-shell .loading-steps li.done {
+  color: var(--text);
+}
+
+.mims-shell .loading-steps li.active {
+  color: var(--text);
+}
+
+.mims-shell .loading-steps .dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mims-shell .loading-steps li.done .dot {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.mims-shell .loading-steps li.active .dot {
+  background: var(--gold);
+  border-color: var(--gold);
+  animation: mims-pulse 1.2s infinite;
+}
+
+@keyframes mims-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(232, 197, 122, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(232, 197, 122, 0);
+  }
+}
+
+.mims-shell .toast {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 70px;
+  background: var(--elevated);
+  border: 1px solid var(--border-2);
+  border-radius: 14px;
+  padding: 12px 14px;
+  z-index: 100;
+  font-size: 14px;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  box-shadow: var(--shadow-2);
+}
+
+.mims-shell .toast.show {
+  display: flex;
+  animation: mims-slide-down 0.25s ease;
+}
+
+@keyframes mims-slide-down {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+}
+
+.mims-shell .divider {
+  height: 1px;
+  background: var(--border);
+  margin: 16px 0;
+}
+
+.mims-shell .row {
+  display: flex;
+  gap: 10px;
+}
+
+.mims-shell .row > * {
+  flex: 1;
+}
+
+.mims-shell .stack-tight > * + * {
+  margin-top: 6px;
+}
+
+.mims-shell .stack > * + * {
+  margin-top: 12px;
+}
+
+.mims-shell .stack-lg > * + * {
+  margin-top: 18px;
+}
+
+.mims-shell .center {
+  text-align: center;
+}
+
+.mims-shell .small {
+  font-size: 13px;
+}
