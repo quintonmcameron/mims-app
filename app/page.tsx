@@ -284,7 +284,7 @@ function computeRecommendation(
 
   const shoot = deal.shootDays * adjDay;
   const edit = deal.editDays * postDayRate;
-  const prePro = adjDay * 0.6;
+  const prePro = 0;
   const usageLicense =
     deal.usage === "organic"
       ? adjDay * 0.5
@@ -1431,7 +1431,7 @@ function SowPreview({ deal, result, profile }: { deal: Deal; result: Recommendat
               <td style={{ textAlign: "right" }}>${fmt(cs.productionSubtotal)}</td>
             </tr>
           )}
-          {cs && cs.shootDays > 0 && (
+          {cs && cs.prePro > 0 && (
             <tr>
               <td>Pre-production & prep</td>
               <td style={{ textAlign: "right" }}>${fmt(cs.prePro)}</td>
@@ -1580,10 +1580,12 @@ function CrewSplitCard({ cs }: { cs: CrewSplit }) {
             </div>
             <span style={amountStyle}>${fmt(cs.productionSubtotal)}</span>
           </div>
-          <div style={{ ...rowStyle, marginBottom: 10 }}>
-            <span style={lineNameStyle}>Pre-production &amp; prep</span>
-            <span style={amountStyle}>${fmt(cs.prePro)}</span>
-          </div>
+          {cs.prePro > 0 && (
+            <div style={{ ...rowStyle, marginBottom: 10 }}>
+              <span style={lineNameStyle}>Pre-production &amp; prep</span>
+              <span style={amountStyle}>${fmt(cs.prePro)}</span>
+            </div>
+          )}
           <div className="progress">
             <div style={{ width: `${shootPct}%` }} />
           </div>
