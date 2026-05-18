@@ -595,7 +595,7 @@ function computeRecommendation(
   const prePro = 0;
   const usageLicense =
     deal.usage === "organic"
-      ? adjDay * 0.5
+      ? 0
       : deal.usage === "paid"
         ? adjDay * 1.5
         : adjDay * 2.5;
