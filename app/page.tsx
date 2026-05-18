@@ -511,84 +511,6 @@ function computeRecommendation(
   };
 }
 
-const sampleDeals: Record<string, Recommendation & { client: string }> =
-  {
-    summit: {
-      client: "Summit Coffee Co.",
-      score: 8,
-      target: 8400,
-      floor: 6800,
-      stretch: 11200,
-      capacity: 9000,
-      mood: "good",
-      headline: "Strong fit. Push for the full rate.",
-      rationale:
-        "Their stated range overlaps your fair rate, decision-maker is on the call, and the work has a clear ROI driver.",
-      verdict:
-        "Take the meeting. Start with a complete scope near $9,800, then simplify deliverables only if the client needs to land closer to your $8,400 fair rate.",
-      scope: "2 shoot days + 3 edit days · organic usage",
-    },
-    rivian: {
-      client: "Rivian Agency",
-      score: 6,
-      target: 3200,
-      floor: 2600,
-      stretch: 4400,
-      capacity: 3300,
-      mood: "ok",
-      headline: "Workable — but you'll have to sell value.",
-      rationale:
-        "Recurring retainer fits their model, but agency margins squeeze creative budgets. Sell continuity, not discount.",
-      verdict:
-        "Lock in 3 months at $3,200/mo. Refuse to start under $3,000. If they push for $2,500, walk.",
-      scope: "Monthly retainer · 8 social cutdowns/mo",
-    },
-    atlas: {
-      client: "Atlas Climbing Gym",
-      score: 7,
-      target: 4200,
-      floor: 3400,
-      stretch: 5800,
-      capacity: 4500,
-      mood: "ok",
-      headline: "Solid. They get it.",
-      rationale:
-        "Local business, owner is the decision maker, video drives membership signups. Honest budget conversation likely.",
-      verdict:
-        'Send the SOW at $4,200 with a "good/better/best" — let them pick the better option.',
-      scope: "1 shoot day + 2 edit days · 6 cutdowns · organic",
-    },
-    cousin: {
-      client: "Cousin's startup",
-      score: 2,
-      target: 4800,
-      floor: 3800,
-      stretch: 6500,
-      capacity: 1500,
-      mood: "walk",
-      headline: "Walk away.",
-      rationale:
-        'Stated budget ($1,500) is 70% below fair-market floor. No revenue model yet. "Exposure" mentioned twice.',
-      verdict:
-        "Politely decline. Refer to a junior. Lowering your rate here resets your floor and damages every future negotiation.",
-      scope: "1 shoot day + cutdowns · paid usage",
-    },
-    mode: {
-      client: "Mode Studio",
-      score: 9,
-      target: 12500,
-      floor: 10200,
-      stretch: 16000,
-      capacity: 14000,
-      mood: "good",
-      headline: "Closed. Send the invoice.",
-      rationale: "Agreed on $12,500. SOW signed. Final cut delivered.",
-      verdict:
-        "Invoice the remaining 50%. Ask for referrals while the work is fresh.",
-      scope: "3 shoot days + 5 edit days · paid usage",
-    },
-  };
-
 function verdictCardStyle(mood: Mood): CSSProperties {
   switch (mood) {
     case "good":
@@ -1344,9 +1266,9 @@ function InvoicePreview() {
       >
         <div>
           <div className="label-sm">Billed to</div>
-          <div style={{ fontWeight: 600, marginTop: 2 }}>Summit Coffee Co.</div>
+          <div style={{ fontWeight: 600, marginTop: 2 }}>Client name</div>
           <div style={{ color: "#6F6F6F" }}>Accounts Payable</div>
-          <div style={{ color: "#6F6F6F" }}>ap@summitcoffee.com</div>
+          <div style={{ color: "#6F6F6F" }}>billing@example.com</div>
         </div>
         <div>
           <div className="label-sm">Issued</div>
@@ -1609,7 +1531,6 @@ type Props = {
   rateDetail: string;
   score: number;
   scoreOffset: number;
-  loadSampleDeal: (key: string) => void;
   displayName: string;
   profileRole: string;
   gearLocker: GearItem[];
@@ -2091,7 +2012,6 @@ function ExtraScreens({
   rateDetail,
   score,
   scoreOffset,
-  loadSampleDeal,
   displayName,
   profileRole,
   gearLocker,
@@ -3203,24 +3123,15 @@ function ExtraScreens({
       <div className={screenClass("deals")}>
         <div className="scroll">
           <h1>Pipeline</h1>
-          {(["summit", "rivian", "cousin"] as const).map((key) => {
-            const s = sampleDeals[key];
-            return (
-              <DealItem
-                key={key}
-                initials={s.client.slice(0, 2).toUpperCase()}
-                avatarStyle={{ background: "rgba(94,226,160,0.12)", color: "var(--success)" }}
-                title={s.client}
-                meta={s.scope ?? ""}
-                badge={`${s.score}/10`}
-                badgeClass="green"
-                onClick={() => {
-                  loadSampleDeal(key);
-                  go("deal-result");
-                }}
-              />
-            );
-          })}
+          <div className="card" style={{ textAlign: "center", padding: "24px 18px" }}>
+            <h3 style={{ marginBottom: 6 }}>No saved deals yet</h3>
+            <p className="muted small" style={{ margin: "0 0 16px" }}>
+              Deals you create will appear here once saving is added.
+            </p>
+            <button type="button" className="btn btn-secondary" onClick={startNewDeal}>
+              Start blank deal
+            </button>
+          </div>
         </div>
         <TabBar active={screen} onNavigate={go} />
       </div>
@@ -3252,7 +3163,7 @@ function ExtraScreens({
       <div className={screenClass("invoice")}>
         <div className="screen-pad">
           <InvoicePreview />
-          <button type="button" className="btn btn-primary" onClick={() => showToast("Demo: invoice sent")}>
+          <button type="button" className="btn btn-primary" onClick={() => showToast("Invoice send flow coming soon")}>
             Send
           </button>
         </div>
@@ -3261,7 +3172,7 @@ function ExtraScreens({
       <div className={screenClass("sow")}>
         <div className="screen-pad">
           <SowPreview deal={deal} result={result} profile={profile} />
-          <button type="button" className="btn btn-primary" onClick={() => showToast("Demo: SOW sent")}>
+          <button type="button" className="btn btn-primary" onClick={() => showToast("SOW signature flow coming soon")}>
             Send for signature
           </button>
         </div>
@@ -3286,11 +3197,7 @@ export default function Page() {
   const [setupStep, setSetupStep] = useState(1);
   const [dealStep, setDealStep] = useState(1);
   const [profile, setProfile] = useState<Profile>(defaultProfile);
-  const [deal, setDeal] = useState<Deal>({
-    ...defaultDeal,
-    client: "Summit Coffee Co.",
-    url: "https://summitcoffee.com",
-  });
+  const [deal, setDeal] = useState<Deal>(defaultDeal);
   const [result, setResult] = useState<Recommendation | null>(null);
   const [rateDetail, setRateDetail] = useState("");
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -3335,25 +3242,6 @@ export default function Page() {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToastMsg(null), 2400);
   }, []);
-
-  const loadDemoAndGo = useCallback(
-    (target: ScreenId) => {
-      setProfile({ ...defaultProfile, ...DEMO_PROFILE });
-      go(target);
-    },
-    [go],
-  );
-
-  const loadSampleDeal = useCallback(
-    (key: string) => {
-      const s = sampleDeals[key];
-      if (!s) return;
-      setDeal((d) => ({ ...d, client: s.client }));
-      setResult(s);
-      setRateDetail(s.scope ?? "");
-    },
-    [],
-  );
 
   const applyResult = useCallback((r: Recommendation, scope?: string) => {
     setResult(r);
@@ -3401,6 +3289,15 @@ export default function Page() {
   };
 
   const startNewDeal = () => {
+    setDeal(defaultDeal);
+    setResult(null);
+    setRateDetail("");
+    setIntelWhy("");
+    setIntelLtv("");
+    setIntelRoi("");
+    setIntelBudget("");
+    setIntelAnnualRevenue("");
+    setIntelCompanySize("");
     setDealStep(1);
     go("new-deal");
   };
@@ -3551,9 +3448,13 @@ export default function Page() {
                 type="button"
                 className="btn btn-ghost"
                 style={{ marginTop: 10 }}
-                onClick={() => loadDemoAndGo("home")}
+                onClick={() => {
+                  if (typeof window !== "undefined") localStorage.setItem("mimsOnboardingDone", "1");
+                  setProfile(defaultProfile);
+                  startNewDeal();
+                }}
               >
-                Skip — try the demo
+                Skip — start blank deal
               </button>
             </div>
           </div>
@@ -4043,46 +3944,19 @@ export default function Page() {
             <div style={{ marginTop: 28 }}>
               <div className="card-row" style={{ marginBottom: 12 }}>
                 <h3>Active deals</h3>
-                <button type="button" className="badge" onClick={() => showToast("Demo: filters coming soon")}>
+                <button type="button" className="badge" onClick={() => showToast("Saved deals coming soon")}>
                   All
                 </button>
               </div>
-              <DealItem
-                initials="SC"
-                avatarStyle={{ background: "rgba(94,226,160,0.12)", color: "var(--success)" }}
-                title="Summit Coffee Co."
-                meta="2-day brand video · likelihood 8/10"
-                badge="$8,400"
-                badgeClass="green"
-                onClick={() => {
-                  loadSampleDeal("summit");
-                  go("deal-result");
-                }}
-              />
-              <DealItem
-                initials="RV"
-                avatarStyle={{ background: "rgba(232,197,122,0.12)", color: "var(--gold)" }}
-                title="Rivian Agency"
-                meta="Recurring social cutdowns · likelihood 6/10"
-                badge="$3,200/mo"
-                badgeClass="gold"
-                onClick={() => {
-                  loadSampleDeal("rivian");
-                  go("deal-result");
-                }}
-              />
-              <DealItem
-                initials="CV"
-                avatarStyle={{ background: "rgba(255,92,92,0.12)", color: "var(--danger)" }}
-                title="Cousin's startup"
-                meta="Promo + ads · likelihood 2/10"
-                badge="Walk away"
-                badgeClass="red"
-                onClick={() => {
-                  loadSampleDeal("cousin");
-                  go("deal-result");
-                }}
-              />
+              <div className="card" style={{ textAlign: "center", padding: "22px 18px" }}>
+                <h4 style={{ marginBottom: 6 }}>No active deals yet</h4>
+                <p className="muted small" style={{ margin: "0 0 14px" }}>
+                  Start a new deal to calculate a rate and build guidance from your own inputs.
+                </p>
+                <button type="button" className="btn btn-secondary" onClick={startNewDeal}>
+                  Start blank deal
+                </button>
+              </div>
             </div>
 
             <div style={{ marginTop: 28 }}>
@@ -4147,7 +4021,6 @@ export default function Page() {
           rateDetail={rateDetail}
           score={score}
           scoreOffset={scoreOffset}
-          loadSampleDeal={loadSampleDeal}
           displayName={displayName}
           profileRole={profileRole}
           gearLocker={profile.gearLocker}
