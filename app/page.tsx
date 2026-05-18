@@ -658,15 +658,6 @@ const INTENT_OPTIONS = [
   { id: "campaign-window", label: "Time-sensitive product/campaign window" },
 ];
 
-const ADDITIONAL_ROLE_OPTIONS = [
-  { id: "dp",     label: "Director of Photography" },
-  { id: "led",    label: "Lead Editor" },
-  { id: "dir",    label: "Director" },
-  { id: "cam",    label: "Camera Operator" },
-  { id: "pa",     label: "Production Assistant" },
-  { id: "custom", label: "Custom Role" },
-];
-
 const SCOPE_SERVICE_OPTIONS: { id: string; label: string; mult: number }[] = [
   { id: "color",    label: "Color grading",         mult: 0.12 },
   { id: "sound",    label: "Sound design & mix",     mult: 0.10 },
@@ -721,6 +712,11 @@ function getRoleDayMode(role: string): DayMode {
 }
 
 const NOVA_ROLES = ["1st AC","1st AD","2nd 2nd AC","2nd AC","2nd AD","2nd Unit 1st AC","2nd Unit 1st AD","2nd Unit 2nd AC","2nd Unit 2nd AD","2nd Unit DP","2nd Unit Director","2nd Unit Electric","2nd Unit Gaffer","2nd Unit Grip","3D Artist","3rd AD","4th AD","ADA","AI Artist","Additional Photography","Aerial Cinematographer","Animal Trainer","Animal Wrangler","Animation Supervisor","Animator","Armorer","Art Coordinator","Art Department","Art Director","Art Production Assistant","Art Rigger","Assistant Animator","Assistant Editor","Assistant Electrician","Assistant Lighting Tech","Associate Creative Director","Associate Producer","Associate Production Manager","Audio Engineer","Audio Visual Technician","B Cam 1st AC","B Cam 2nd AC","B Camera Operator","BTS Photographer","BTS Videographer","Best Boy Electric","Best Boy Grip","Boom Operator","Braider","CG Artist","Camera Operator","Casting Assistant","Casting Associate","Casting Director","Chief Lighting Technician","Choreographer","Co-Director","Color Assistant","Color Producer","Colorist","Composer","Compositor","Concept Artist","Content Creator","Copywriter","Costume Assistant","Costume Designer","Crane Operator","Creative Assistant","Creative Director","Creative Producer","Creative Strategist","Cyclo Operator","DIT","DMX Technician","Dancer","Data Manager","Design Assistant","Designer","Digital Designer","Digitech","Dimmer Board Operator","Director","Director of Photography","Director's Assistant","Dolly Grip","Drone Operator","Editor","Electric","Event Producer","Executive Assistant","Executive Producer","Experiential Producer","FPV Drone Pilot","Fabricator","Fashion Assistant","Fashion Designer","Fashion Illustrator","Fashion Intern","Film Loader","Finishing Artist","Fixer","Fixtures Technician","Florist","Focus Puller","Foley Artist","Food Stylist","Gaffer","Garment Production Manager","Gimbal Operator","Graphic Designer","Greensman","Grip","Grip Assistant","Groomer","Hair & Makeup Artist","Hair & Makeup Assistant","Hair Assistant","Hair Stylist","Head Fixtures Technician","Illustrator","Interior Designer","Intern","Intimacy Coordinator","Jib Crane Tech","Jib Operator","Jib Tech","Key Grip","Key Scenic Painter","Layout Artist","Lead Animator","Lead Compositor","Lead Crane Tech","Lead Rigger","Leadman","Lighting Assistant","Lighting Console Programmer","Lighting Designer","Lighting Director","Lighting Tech","Line Producer","Live Editor","Live Show Designer","Location Manager","Location Scout","Lot Best Boy","Makeup Artist","Makeup Assistant","Manicurist","Marketing Coordinator","Marketing Director","Marketing Manager","Motion Designer","Movement Coach","Movement Director","Music Supervisor","Music Supervisor Assistant","Nail Artist","Nail Assistant","Office PA","Omega AR Operator","PA","Packaging Designer","Pattern Maker","Photo Assistant","Photographer","Picture Car Coordinator","Post Producer","Post Production Assistant","Post Production Coordinator","Post Sound Mixer","Post Supervisor","Prep Supervisor","Producer","Product Designer","Production Assistant","Production Coordinator","Production Designer","Production Manager","Production Supervisor","Project Manager","Projection Mapping Specialist","Prop Maker","Prop Master","Prop Stylist","Pyrotechnician","Remote Head Tech","Render Artist","Retoucher","Rig AC","Rigging BBE","Rigging BBG","Rigging Electrician","Rigging Gaffer","Rigging Grip","Rigging Key Grip","SFX Coordinator","SFX Makeup Artist","SFX Supervisor","SFX Technician","Scenic Painter","Script Supervisor","Seamstress","Set Builder","Set Carpenter","Set Decorator","Set Designer","Set Dresser","Set Lighting Technician","Social Media Manager","Social Media Strategist","Sound Designer","Sound Mixer","Spatial Designer","Stage Designer","Steadicam Operator","Storyboard Artist","Streaming Engineer","Stunt Coordinator","Stunt Rigger","Stunt Safety Rigger","Stylist","Stylist Assistant","Supervising Producer","Swing","Switch Board Operator","Tailor","Technical Director","Technocrane Operator","Technocrane Tech","Title Designer","Treatment Designer","Trinity Operator","Truck PA","UI/UX Designer","Underwater Camera Operator","Underwater Grip","Underwater Lighting Tech","Unit Production Manager","Utility Sound Tech","VFX Artist","VFX Supervisor","VTR","Video Growth Engineer","Videographer","Visual Researcher","Web Designer","Web Developer","Writer"];
+
+const ADDITIONAL_ROLE_OPTIONS = NOVA_ROLES.map((role) => ({
+  id: role,
+  label: role,
+}));
 
 const DEMO_PROFILE = {
   name: "Quinton Cameron",
@@ -1075,7 +1071,7 @@ function SpinCounter({
           color: value === 0 ? "var(--text-3)" : "var(--text)",
           transition: "color 0.12s ease",
         }}>
-          {value}
+          {value === 0 ? "" : value}
         </div>
         <button
           type="button"
@@ -1522,7 +1518,7 @@ function SowPreview({ deal, result, profile }: { deal: Deal; result: Recommendat
 
       <h3 style={{ fontSize: 14, margin: "14px 0 6px" }}>Revisions</h3>
       <p style={{ fontSize: 12, color: "#444", margin: "0 0 10px" }}>
-        Two rounds included on primary deliverables. Additional rounds: $250 each. Major creative pivots after picture lock are re-quoted.
+        Two rounds included on primary deliverables. Additional rounds: $250 each. Major creative pivots after picture lock are repriced.
       </p>
 
       <h3 style={{ fontSize: 14, margin: "14px 0 6px" }}>Investment</h3>
@@ -1715,7 +1711,7 @@ function CrewSplitCard({ cs }: { cs: CrewSplit }) {
       {cs.isMultiRole && (
         <div style={{ marginTop: 14, padding: "10px 12px", background: "rgba(232,197,122,0.06)", borderRadius: 10, border: "1px solid rgba(232,197,122,0.15)" }}>
           <p style={{ margin: 0, fontSize: 12, color: "var(--text-3)", lineHeight: 1.5 }}>
-            Editing priced at full video editor rate — not the standard 0.75× discount. You&apos;re filling two seats.
+            Editing priced at full video editor rate — not the standard 0.75× discount. You are filling two seats.
           </p>
         </div>
       )}
@@ -2175,7 +2171,7 @@ function ExtraScreens({
           </div>
           {dealStep === 1 && (
             <>
-              <h2>Who&apos;s the client?</h2>
+              <h2>Who is the client?</h2>
               <p className="muted small" style={{ margin: "6px 0 16px" }}>
                 MIMS will research them in the background.
               </p>
@@ -2196,7 +2192,7 @@ function ExtraScreens({
                 />
               </div>
               <div className="field">
-                <label>How&apos;d they find you?</label>
+                <label>How did they find you?</label>
                 <Seg
                   options={SOURCE_OPTIONS}
                   value={deal.source}
@@ -2211,7 +2207,7 @@ function ExtraScreens({
           )}
           {dealStep === 2 && (
             <>
-              <h2>What&apos;s the work?</h2>
+              <h2>What is the work?</h2>
 
               <div className="field" style={{ marginBottom: 18 }}>
                 <label>What position do they want you to do?</label>
@@ -2229,126 +2225,31 @@ function ExtraScreens({
                 />
               </div>
 
-              {/* Additional Positions — Multi-Role Upcharge */}
-              <div style={{ marginBottom: 18 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-2)", marginBottom: 4 }}>
-                  Additional Positions (Multi-Role Upcharge)
-                </div>
-                <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 10 }}>
-                  Each secondary role stacks a 60% upcharge premium onto the primary day rate total.
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  {ADDITIONAL_ROLE_OPTIONS.map((role) => {
-                    const active = (deal.additionalRoles ?? []).includes(role.id);
-                    return (
-                      <button
-                        key={role.id}
-                        type="button"
-                        onClick={() => setDeal((d) => {
-                          const current = d.additionalRoles ?? [];
-                          return {
-                            ...d,
-                            additionalRoles: active
-                              ? current.filter((r) => r !== role.id)
-                              : [...current, role.id],
-                          };
-                        })}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 9,
-                          padding: "11px 13px",
-                          background: active ? "rgba(232,197,122,0.07)" : "var(--surface)",
-                          border: `1px solid ${active ? "rgba(232,197,122,0.4)" : "var(--border)"}`,
-                          borderRadius: 12, cursor: "pointer", textAlign: "left",
-                          transition: "all 0.15s ease",
-                        }}
-                      >
-                        <div style={{
-                          width: 16, height: 16, borderRadius: 5, flexShrink: 0,
-                          border: active ? "none" : "1.5px solid var(--border-2)",
-                          background: active ? "var(--grad)" : "transparent",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                        }}>
-                          {active && (
-                            <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
-                              <path d="M2 6l3 3 5-5" stroke="#1a1306" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          )}
-                        </div>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: active ? "var(--gold)" : "var(--text-2)", lineHeight: 1.3 }}>
-                          {role.label}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {(deal.additionalRoles ?? []).length > 0 && (
-                  <div style={{ marginTop: 10, padding: "9px 13px", background: "rgba(94,226,160,0.06)", border: "1px solid rgba(94,226,160,0.2)", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontSize: 11, color: "var(--success)", fontWeight: 600 }}>
-                      {(deal.additionalRoles ?? []).length} secondary role{(deal.additionalRoles ?? []).length !== 1 ? "s" : ""} active
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--text-3)" }}>
-                      +{(deal.additionalRoles ?? []).length * 60}% upcharge stacked
-                    </div>
-                  </div>
-                )}
+              <div className="field">
+                <label>Additional Positions (Multi-Role Upcharge)</label>
+                <select
+                  value={(deal.additionalRoles ?? [])[0] ?? ""}
+                  onChange={(e) =>
+                    setDeal((d) => ({
+                      ...d,
+                      additionalRoles: e.target.value ? [e.target.value] : [],
+                    }))
+                  }
+                >
+                  <option value="">No Secondary Position (Single Role)</option>
+                  {ADDITIONAL_ROLE_OPTIONS.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="helper">Select a concurrent role for this project to calculate your multi-seat operational upcharge premium.</p>
               </div>
 
               <ProjectSearchInput
                 value={deal.project}
                 onChange={(v) => setDeal((d) => ({ ...d, project: v }))}
               />
-
-              {/* Scope services checklist */}
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-2)", marginBottom: 6 }}>What do you want us to do?</div>
-                <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 10 }}>Select all technical deliverables — each scales the baseline rate.</div>
-                <div style={{ display: "grid", gap: 6 }}>
-                  {SCOPE_SERVICE_OPTIONS.map((svc) => {
-                    const checked = (deal.scopeServices ?? []).includes(svc.id);
-                    return (
-                      <button
-                        key={svc.id}
-                        type="button"
-                        onClick={() => setDeal((d) => ({
-                          ...d,
-                          scopeServices: checked
-                            ? (d.scopeServices ?? []).filter((s) => s !== svc.id)
-                            : [...(d.scopeServices ?? []), svc.id],
-                        }))}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 10,
-                          padding: "10px 12px",
-                          background: checked ? "rgba(232,197,122,0.06)" : "var(--surface)",
-                          border: `1px solid ${checked ? "rgba(232,197,122,0.3)" : "var(--border)"}`,
-                          borderRadius: 10, cursor: "pointer", textAlign: "left",
-                          transition: "all 0.15s ease",
-                        }}
-                      >
-                        <div style={{ width: 18, height: 18, borderRadius: 6, flexShrink: 0, border: checked ? "none" : "1.5px solid var(--border-2)", background: checked ? "var(--grad)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          {checked && (
-                            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                              <path d="M2 6l3 3 5-5" stroke="#1a1306" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          )}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: checked ? "var(--text)" : "var(--text-2)" }}>{svc.label}</div>
-                        </div>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: checked ? "var(--gold)" : "var(--text-3)", flexShrink: 0 }}>
-                          +{Math.round(svc.mult * 100)}%
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-                {(deal.scopeServices ?? []).length > 0 && (
-                  <div style={{ marginTop: 8, padding: "8px 12px", background: "rgba(232,197,122,0.05)", border: "1px solid rgba(232,197,122,0.2)", borderRadius: 10 }}>
-                    <div style={{ fontSize: 11, color: "var(--gold)", fontWeight: 600 }}>
-                      +{Math.round((deal.scopeServices ?? []).reduce((acc, sid) => acc + (SCOPE_SERVICE_OPTIONS.find((s) => s.id === sid)?.mult ?? 0), 0) * 100)}% scope services premium applied to labor total
-                    </div>
-                  </div>
-                )}
-              </div>
 
               <div className="field">
                 <label>Additional scope notes</label>
@@ -2976,8 +2877,8 @@ function ExtraScreens({
                     <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Value Architecture</div>
                     <p style={{ margin: 0, fontSize: 14, color: "var(--text-2)", lineHeight: 1.7 }}>
                       Your rate of <strong style={{ color: "var(--gold)" }}>${fmt(result.target)}</strong> was not calculated from hours worked — it was anchored to{" "}
-                      {deal.client ? <><strong style={{ color: "var(--text)" }}>{deal.client}</strong>&apos;s</> : "this client"}{" "}
-                      corporate scale, strategic intent, and your market position. The moment you explain your rate in hours, you have conceded the frame.
+                      {deal.client ? <><strong style={{ color: "var(--text)" }}>{deal.client}</strong> client profile</> : "this client"}{" "}
+                      corporate scale, strategic intent, and your market position. The moment you explain your rate in hours, the conversation shifts away from business value.
                     </p>
                   </div>
 
@@ -2985,11 +2886,11 @@ function ExtraScreens({
                     <div className="source">02 · Anchor to Their Target Return</div>
                     <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Revenue Anchoring</div>
                     <p style={{ margin: 0, fontSize: 14, color: "var(--text-2)", lineHeight: 1.7 }}>
-                      Before naming your number, ask what it would mean for {deal.client || "this business"} if this creative delivered{" "}
+                      Before naming your number, guide the conversation toward what it would mean for {deal.client || "this business"} if this creative delivered{" "}
                       {result.breakEvenSales != null
                         ? <><strong style={{ color: "var(--gold)" }}>{result.breakEvenSales}</strong> new customer{result.breakEvenSales !== 1 ? "s" : ""}</>
                         : "measurable revenue growth"}.{" "}
-                      Let their ROI sit in the room first. Your <strong style={{ color: "var(--gold)" }}>${fmt(result.target)}</strong> investment should feel smaller than their upside.
+                      Let their ROI become the reference point first. Your <strong style={{ color: "var(--gold)" }}>${fmt(result.target)}</strong> investment should feel smaller than their upside.
                     </p>
                   </div>
 
@@ -3241,7 +3142,7 @@ export default function Page() {
   const [intelWhy, setIntelWhy] = useState("");
   const [intelLtv, setIntelLtv] = useState("");
   const [intelRoi, setIntelRoi] = useState("");
-  const [intelBudget, setIntelBudget] = useState("$6,000–$8,000");
+  const [intelBudget, setIntelBudget] = useState("");
   const [intelAnnualRevenue, setIntelAnnualRevenue] = useState("");
   const [intelCompanySize, setIntelCompanySize] = useState("");
   const [isUnion, setIsUnion] = useState(false);
@@ -3402,7 +3303,7 @@ export default function Page() {
                 MIMS · v0.1
               </div>
               <h1>
-                Charge what you&apos;re worth.
+                Charge what you are worth.
                 <br />
                 Close the deal.
               </h1>
@@ -3499,9 +3400,9 @@ export default function Page() {
 
             {setupStep === 1 && (
               <>
-                <h2>What&apos;s your position?</h2>
+                <h2>What is your position?</h2>
                 <p className="muted small" style={{ margin: "6px 0 18px" }}>
-                  Pick the role you&apos;re charging for today. Search from 200+ Nova positions.
+                  Pick the role you are charging for today. Search from 200+ Nova positions.
                 </p>
                 <RoleSearchInput
                   value={profile.trade}
@@ -3980,7 +3881,7 @@ export default function Page() {
                 Hello {homeFirst}
               </div>
               <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700, color: "#ffffff", letterSpacing: "-0.01em" }}>
-                let&apos;s make this deal make sense
+                let us make this deal make sense
               </p>
               <h1>What are we doing today?</h1>
             </div>
