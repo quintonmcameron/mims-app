@@ -3161,8 +3161,8 @@ function ExtraScreens({
               </button>
             </div>
 
-            <p style={{ marginTop: 28, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.04)", fontSize: 11, color: "var(--text-3)", opacity: 0.5, lineHeight: 1.65, textAlign: "center", marginBottom: 0 }}>
-              Disclaimer: MIMS is an automated productivity tool designed for educational and informational entertainment purposes only. Calculations, strategies, and negotiation scripts are estimates based on user input and general market trends. MIMS does not provide binding legal, financial, accounting, or professional contractual advice. Users are solely responsible for their own client negotiations, rate agreements, and business outcomes. Use of this application constitutes acceptance of these terms.
+            <p style={{ marginTop: 28, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.04)", fontSize: 11, color: "var(--text-3)", opacity: 0.72, lineHeight: 1.65, textAlign: "center", marginBottom: 0 }}>
+              Disclaimer: MIMS provides educational pricing and deal-prep estimates based on the information entered by the user. Results are not legal, financial, tax, union, guild, accounting, or contract advice, and they are not a guarantee of what any client will accept. Review your own agreements, confirm current market or union requirements when relevant, and use your judgment before sending any quote, invoice, or scope. By using MIMS, you agree to the <a href="/terms" style={{ color: "var(--gold)", textDecoration: "none" }}>Terms</a> and <a href="/privacy" style={{ color: "var(--gold)", textDecoration: "none" }}>Privacy Policy</a>.
             </p>
           </div>
 
@@ -4090,7 +4090,7 @@ export default function Page() {
                     )}
                   </div>
                   <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: setupAgreed ? "var(--text)" : "var(--text-2)", lineHeight: 1.55 }}>
-                    I understand that MIMS provides educational business tools and simulation scripts, not certified legal or financial advice.
+                    I understand that MIMS provides educational pricing and deal-prep estimates, not legal, financial, tax, union, guild, accounting, or contract advice. I agree to the <a href="/terms" style={{ color: "var(--gold)", textDecoration: "none" }} onClick={(event) => event.stopPropagation()}>Terms</a> and <a href="/privacy" style={{ color: "var(--gold)", textDecoration: "none" }} onClick={(event) => event.stopPropagation()}>Privacy Policy</a>.
                   </p>
                 </button>
 
@@ -4220,8 +4220,8 @@ export default function Page() {
               </div>
             </div>
 
-            <p style={{ marginTop: 28, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.04)", fontSize: 11, color: "var(--text-3)", opacity: 0.5, lineHeight: 1.65, textAlign: "center", marginBottom: 0 }}>
-              Disclaimer: MIMS is an automated productivity tool designed for educational and informational entertainment purposes only. Calculations, strategies, and negotiation scripts are estimates based on user input and general market trends. MIMS does not provide binding legal, financial, accounting, or professional contractual advice. Users are solely responsible for their own client negotiations, rate agreements, and business outcomes. Use of this application constitutes acceptance of these terms.
+            <p style={{ marginTop: 28, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.04)", fontSize: 11, color: "var(--text-3)", opacity: 0.72, lineHeight: 1.65, textAlign: "center", marginBottom: 0 }}>
+              Disclaimer: MIMS provides educational pricing and deal-prep estimates based on the information entered by the user. Results are not legal, financial, tax, union, guild, accounting, or contract advice, and they are not a guarantee of what any client will accept. Review your own agreements, confirm current market or union requirements when relevant, and use your judgment before sending any quote, invoice, or scope. By using MIMS, you agree to the <a href="/terms" style={{ color: "var(--gold)", textDecoration: "none" }}>Terms</a> and <a href="/privacy" style={{ color: "var(--gold)", textDecoration: "none" }}>Privacy Policy</a>.
             </p>
           </div>
           <TabBar active={screen} onNavigate={go} />
