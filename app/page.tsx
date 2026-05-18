@@ -2332,6 +2332,13 @@ function ExtraScreens({
         <div className="screen-pad" style={{ paddingTop: 0 }}>
           {/* ── Live Price Anchor Tracker ────────────────────── */}
           {(() => {
+            const pricedDays = dayMode === "production"
+              ? deal.shootDays
+              : dayMode === "post" || dayMode === "design"
+                ? deal.editDays
+                : deal.shootDays + deal.editDays;
+            const baseLabor = Math.round(baseDay * pricedDays);
+            const pricedDayLabel = Number.isInteger(pricedDays) ? pricedDays.toString() : pricedDays.toFixed(1);
             const pills = ([
               deal.rush === "rush"         && { l: "RUSH",  bg: "rgba(255,181,71,.12)",  bd: "rgba(255,181,71,.35)",  c: "#ffb547" },
               deal.rush === "fire"         && { l: "FIRE",  bg: "rgba(255,92,92,.12)",   bd: "rgba(255,92,92,.35)",   c: "#ff5c5c" },
@@ -2373,6 +2380,11 @@ function ExtraScreens({
                     </span>
                     <span style={{ fontSize: 10, color: "var(--text-3)", fontWeight: 500 }}>/day</span>
                   </div>
+                  {pricedDays > 0 && (
+                    <div style={{ marginTop: 4, fontSize: 10, color: "var(--text-3)", whiteSpace: "nowrap" }}>
+                      {pricedDayLabel} day{pricedDays === 1 ? "" : "s"} = ${fmt(baseLabor)}
+                    </div>
+                  )}
                 </div>
 
                 {/* Divider */}
