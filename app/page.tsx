@@ -239,6 +239,66 @@ function getLocationMarketMultiplier(location: string): number {
   return 1;
 }
 
+type RoleRateBand = {
+  keywords: string[];
+  base: number;
+  min: number;
+  max: number;
+};
+
+const ROLE_RATE_BANDS: RoleRateBand[] = [
+  { keywords: ["production assistant", "office pa", "truck pa", "pa"], base: 300, min: 250, max: 450 },
+  { keywords: ["director of photography", "2nd unit dp", "dp"], base: 900, min: 550, max: 1800 },
+  { keywords: ["director", "co-director", "2nd unit director"], base: 1200, min: 700, max: 2600 },
+  { keywords: ["producer", "executive producer", "supervising producer", "creative producer"], base: 1250, min: 650, max: 2500 },
+  { keywords: ["1st ad", "assistant director"], base: 900, min: 550, max: 1600 },
+  { keywords: ["camera operator", "b camera operator", "underwater camera operator"], base: 700, min: 450, max: 1300 },
+  { keywords: ["1st ac", "focus puller", "rig ac"], base: 650, min: 400, max: 1100 },
+  { keywords: ["gaffer", "key grip", "best boy", "electric", "grip", "lighting tech"], base: 650, min: 400, max: 1200 },
+  { keywords: ["sound mixer", "boom operator", "utility sound", "audio engineer"], base: 650, min: 400, max: 1200 },
+  { keywords: ["editor", "assistant editor", "live editor"], base: 750, min: 300, max: 1600 },
+  { keywords: ["colorist", "finishing artist"], base: 700, min: 450, max: 1500 },
+  { keywords: ["vfx", "compositor", "cg artist", "render artist"], base: 850, min: 500, max: 1800 },
+  { keywords: ["motion designer", "animator", "lead animator", "animation supervisor"], base: 750, min: 400, max: 1600 },
+  { keywords: ["graphic designer", "digital designer", "illustrator", "layout artist"], base: 550, min: 300, max: 1200 },
+  { keywords: ["web developer", "web designer", "ui/ux designer", "product designer"], base: 700, min: 400, max: 1600 },
+  { keywords: ["creative director", "art director"], base: 1000, min: 550, max: 2200 },
+  { keywords: ["production manager", "unit production manager", "line producer"], base: 800, min: 500, max: 1500 },
+  { keywords: ["production coordinator", "post production coordinator", "art coordinator"], base: 500, min: 300, max: 900 },
+  { keywords: ["videographer", "photographer", "content creator", "bts"], base: 700, min: 350, max: 1500 },
+  { keywords: ["drone operator", "aerial cinematographer", "fpv drone pilot"], base: 800, min: 500, max: 1600 },
+  { keywords: ["hair", "makeup", "groomer", "manicurist", "nail"], base: 800, min: 350, max: 1400 },
+  { keywords: ["stylist", "costume designer", "food stylist", "prop stylist"], base: 700, min: 350, max: 1400 },
+  { keywords: ["copywriter", "writer", "social media", "marketing"], base: 550, min: 300, max: 1200 },
+  { keywords: ["composer", "sound designer", "post sound mixer", "music supervisor"], base: 650, min: 400, max: 1400 },
+];
+
+function getRoleRateBand(role: string): RoleRateBand {
+  const normalizedRole = role.toLowerCase();
+  const exactOrIncluded = ROLE_RATE_BANDS.find((band) =>
+    band.keywords.some((keyword) => normalizedRole === keyword || (keyword.length > 3 && normalizedRole.includes(keyword)))
+  );
+  if (exactOrIncluded) return exactOrIncluded;
+
+  const mode = getRoleDayMode(role);
+  if (mode === "post") return { keywords: [], base: 650, min: 350, max: 1400 };
+  if (mode === "design") return { keywords: [], base: 600, min: 300, max: 1300 };
+  if (mode === "dual") return { keywords: [], base: 700, min: 350, max: 1500 };
+  return { keywords: [], base: 550, min: 300, max: 1200 };
+}
+
+function getEstimatedBaseDayRate(profile: Profile, role: string, isUnion = false, matchUnionRates = false): number {
+  const selectedRole = role || profile.trade;
+  const band = getRoleRateBand(selectedRole);
+  const expMult =
+    ({ "0-1": 0.72, "1-3": 0.86, "3-5": 1, "5-10": 1.2, "10+": 1.45 } as Record<string, number>)[profile.experience || "3-5"] ?? 1;
+  const skillMult =
+    ({ emerging: 0.9, mid: 1, senior: 1.15, expert: 1.35 } as Record<string, number>)[profile.skill || "mid"] ?? 1;
+  const unionFloorMult = isUnion || matchUnionRates ? 1.18 : 1;
+  const estimated = band.base * expMult * skillMult * unionFloorMult;
+  return Math.round(Math.max(band.min, Math.min(band.max, estimated)) / 25) * 25;
+}
+
 function getPublicFootprintMultiplier(deal: Deal): number {
   const audienceMult: Record<string, number> = {
     "under-5k": 0.95,
@@ -277,24 +337,7 @@ function computeRecommendation(
   isUnion = false,
   matchUnionRates = false,
 ): Recommendation {
-  // Union commercial scale tiers mapped to experience brackets (T1=most senior)
-  const UNION_TIERS: Record<string, number> = {
-    "0-1": 350, "1-3": 550, "3-5": 750, "5-10": 1000, "10+": 1500,
-  };
-  // Independent market tiers: 30% below premium union scale
-  const INDEPENDENT_TIERS: Record<string, number> = {
-    "0-1": 245, "1-3": 385, "3-5": 525, "5-10": 700, "10+": 1050,
-  };
-
-  const exp = profile.experience || "5-10";
-  const base = (isUnion || matchUnionRates)
-    ? (UNION_TIERS[exp] || 1000)
-    : (INDEPENDENT_TIERS[exp] || 700);
-
-  const skillMult =
-    { emerging: 0.9, mid: 1.0, senior: 1.15, expert: 1.35 }[
-      profile.skill || "senior"
-    ] || 1.0;
+  const base = getEstimatedBaseDayRate(profile, deal.dealRole || profile.trade, isUnion, matchUnionRates);
   const extrasMult = 1 + Math.min(profile.extras.length, 4) * 0.04;
   const resumeScore = profile.resumeLeverageScore ?? 0;
   const resumeClientCount = profile.resumeClientSignals?.length ?? 0;
@@ -313,7 +356,7 @@ function computeRecommendation(
   const usagePremium = ({ organic: 0, paid: 0.25, broadcast: 0.5 } as Record<string, number>)[deal.usage] || 0;
   const premiumLoading = Math.min(rushPremium + usagePremium, 0.5);
 
-  const adjDay = base * skillMult * extrasMult * resumeMult * locationMult * (1 + premiumLoading);
+  const adjDay = base * extrasMult * resumeMult * locationMult * (1 + premiumLoading);
 
   // Pure post/design roles should scale at the full day rate. For production-first roles,
   // edit days remain discounted unless the same person is covering a true dual-role scope.
@@ -2280,12 +2323,8 @@ function ExtraScreens({
   );
 
   const baseDay = useMemo(() => {
-    const UNION_T: Record<string, number> = { "0-1": 350, "1-3": 550, "3-5": 750, "5-10": 1000, "10+": 1500 };
-    const IND_T: Record<string, number>   = { "0-1": 245, "1-3": 385, "3-5": 525, "5-10": 700,  "10+": 1050 };
-    return (isUnion || matchUnionRates)
-      ? (UNION_T[profile.experience] ?? 1000)
-      : (IND_T[profile.experience]   ?? 700);
-  }, [profile.experience, isUnion, matchUnionRates]);
+    return getEstimatedBaseDayRate(profile, deal.dealRole || profile.trade, isUnion, matchUnionRates);
+  }, [profile.trade, profile.experience, profile.skill, deal.dealRole, isUnion, matchUnionRates]);
 
   const prevLiveTotal = useRef(0);
   const tickDir = liveEstimate.target >= prevLiveTotal.current ? "up" : "down";
