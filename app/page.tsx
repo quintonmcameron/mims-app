@@ -3769,6 +3769,7 @@ export default function Page() {
           </div>
         )}
         {/* Welcome */}
+        {screen === "welcome" && (
         <div className={screenClass(screen, "welcome")}>
           <div className="screen-pad no-pad-bottom" style={{ padding: 0 }}>
             <div className="welcome-hero">
@@ -3859,8 +3860,10 @@ export default function Page() {
             </div>
           </div>
         </div>
+        )}
 
         {/* Profile setup */}
+        {screen === "profile-setup" && (
         <div className={screenClass(screen, "profile-setup")}>
           <div className="topbar">
             <div className="left">
@@ -4176,8 +4179,10 @@ export default function Page() {
             )}
           </div>
         </div>
+        )}
 
         {/* Home */}
+        {screen === "home" && (
         <div className={screenClass(screen, "home")}>
           <div className="topbar">
             <div className="left logo">
@@ -4290,8 +4295,9 @@ export default function Page() {
           </div>
           <TabBar active={screen} onNavigate={go} />
         </div>
+        )}
 
-                <ExtraScreens
+        <ExtraScreens
           screen={screen}
           screenClass={(id) => screenClass(screen, id)}
           go={go}
