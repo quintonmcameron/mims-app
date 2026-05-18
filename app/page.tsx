@@ -69,10 +69,20 @@ interface Deal {
   scopeServices: string[];
   dealRole: string;
   additionalRoles: string[];
+  additionalCrew: string[];
   kitFee: string;
   kitFeeCustom: string;
   kitFeeLockerItems: string[];
   kitFeeRate: string;
+}
+
+interface AdditionalCrewLine {
+  id: string;
+  label: string;
+  rate: number;
+  days: number;
+  total: number;
+  phase: "shoot" | "post" | "project";
 }
 
 interface CrewSplit {
@@ -92,6 +102,8 @@ interface CrewSplit {
   isUnion: boolean;
   matchUnionRates: boolean;
   unionPH: number;
+  additionalCrew: AdditionalCrewLine[];
+  additionalCrewTotal: number;
   kitFeeTotal: number;
   kitFeeLabel: string;
 }
@@ -161,6 +173,7 @@ const defaultDeal: Deal = {
   scopeServices: [],
   dealRole: "",
   additionalRoles: [],
+  additionalCrew: [],
   kitFee: "",
   kitFeeCustom: "",
   kitFeeLockerItems: [],
@@ -310,6 +323,25 @@ function computeRecommendation(
   // Additional role stacking: 60% of adjDay per active secondary role per day
   const totalDays = deal.shootDays + deal.editDays || 1;
   const additionalRoleBonus = Math.round(adjDay * 0.6 * totalDays * (deal.additionalRoles ?? []).length);
+  const additionalCrew = (deal.additionalCrew ?? []).map((crewId) => {
+    const option = ADDITIONAL_CREW_OPTIONS.find((crew) => crew.id === crewId);
+    if (!option) return null;
+    const days =
+      option.phase === "post"
+        ? Math.max(deal.editDays, 1)
+        : option.phase === "shoot"
+          ? Math.max(deal.shootDays, 1)
+          : Math.max(deal.shootDays + deal.editDays, 1);
+    return {
+      id: option.id,
+      label: option.label,
+      rate: option.dayRate,
+      days,
+      total: option.dayRate * days,
+      phase: option.phase,
+    };
+  }).filter((line): line is AdditionalCrewLine => Boolean(line));
+  const additionalCrewTotal = additionalCrew.reduce((sum, line) => sum + line.total, 0);
 
   // Scope services: each selected service multiplies the base labor
   const scopeServicesMult = (deal.scopeServices ?? []).reduce(
@@ -320,10 +352,10 @@ function computeRecommendation(
   let laborTarget = shoot + edit + prePro + usageLicense + unionPH + additionalRoleBonus;
   laborTarget *= (1 + scopeServicesMult);
   laborTarget = Math.round((laborTarget * compositeMult) / 50) * 50;
-  const target = laborTarget + kitFeeTotal;
-  const floor = Math.round((laborTarget * 0.8) / 50) * 50 + kitFeeTotal;
-  const stretch = Math.round((laborTarget * 1.35) / 50) * 50 + kitFeeTotal;
-  const floorRate = Math.round((laborTarget * 0.65) / 50) * 50 + kitFeeTotal;
+  const target = laborTarget + kitFeeTotal + additionalCrewTotal;
+  const floor = Math.round((laborTarget * 0.8) / 50) * 50 + kitFeeTotal + additionalCrewTotal;
+  const stretch = Math.round((laborTarget * 1.35) / 50) * 50 + kitFeeTotal + additionalCrewTotal;
+  const floorRate = Math.round((laborTarget * 0.65) / 50) * 50 + kitFeeTotal + additionalCrewTotal;
   const breakEvenSales = ltvNum > 0 ? Math.ceil(target / ltvNum) : null;
 
   const stanceCapMult =
@@ -414,6 +446,8 @@ function computeRecommendation(
     isUnion,
     matchUnionRates,
     unionPH: Math.round(unionPH * compositeMult),
+    additionalCrew,
+    additionalCrewTotal,
     kitFeeTotal,
     kitFeeLabel,
   };
@@ -667,6 +701,22 @@ const SCOPE_SERVICE_OPTIONS: { id: string; label: string; mult: number }[] = [
   { id: "dit",      label: "DIT / data management",  mult: 0.05 },
   { id: "drone",    label: "Drone / aerial footage",  mult: 0.12 },
   { id: "captions", label: "Captions & subtitles",   mult: 0.04 },
+];
+
+const ADDITIONAL_CREW_OPTIONS: { id: string; label: string; dayRate: number; phase: "shoot" | "post" | "project" }[] = [
+  { id: "producer", label: "Producer", dayRate: 800, phase: "project" },
+  { id: "1st-ad", label: "1st AD", dayRate: 650, phase: "shoot" },
+  { id: "dp", label: "Director of Photography", dayRate: 900, phase: "shoot" },
+  { id: "camera-op", label: "Camera Operator", dayRate: 650, phase: "shoot" },
+  { id: "1st-ac", label: "1st AC", dayRate: 500, phase: "shoot" },
+  { id: "gaffer", label: "Gaffer", dayRate: 650, phase: "shoot" },
+  { id: "key-grip", label: "Key Grip", dayRate: 550, phase: "shoot" },
+  { id: "sound-mixer", label: "Sound Mixer", dayRate: 650, phase: "shoot" },
+  { id: "pa", label: "Production Assistant", dayRate: 250, phase: "shoot" },
+  { id: "editor", label: "Editor", dayRate: 650, phase: "post" },
+  { id: "colorist", label: "Colorist", dayRate: 700, phase: "post" },
+  { id: "hmu", label: "Hair & Makeup", dayRate: 650, phase: "shoot" },
+  { id: "stylist", label: "Stylist", dayRate: 700, phase: "shoot" },
 ];
 
 type DayMode = "dual" | "production" | "post" | "design";
@@ -1530,7 +1580,7 @@ type Props = {
 
 function CrewSplitCard({ cs }: { cs: CrewSplit }) {
   const shootSubtotal = cs.productionSubtotal + cs.prePro;
-  const grandTotal = shootSubtotal + cs.postSubtotal + cs.usageLicense + cs.kitFeeTotal;
+  const grandTotal = shootSubtotal + cs.postSubtotal + cs.usageLicense + cs.kitFeeTotal + cs.additionalCrewTotal;
   const shootPct = grandTotal > 0 ? Math.round((shootSubtotal / grandTotal) * 100) : 0;
   const postPct = grandTotal > 0 ? Math.round((cs.postSubtotal / grandTotal) * 100) : 0;
 
@@ -1653,6 +1703,26 @@ function CrewSplitCard({ cs }: { cs: CrewSplit }) {
             </div>
             <span style={{ ...amountStyle, color: "var(--gold)" }}>${fmt(cs.kitFeeTotal)}</span>
           </div>
+        </>
+      )}
+
+      {/* Additional Crew */}
+      {cs.additionalCrew.length > 0 && (
+        <>
+          <div style={{ height: 1, background: "var(--border)", margin: "4px 0 12px" }} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+            <span style={sectionLabelStyle}>Additional Crew</span>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>${fmt(cs.additionalCrewTotal)}</span>
+          </div>
+          {cs.additionalCrew.map((crew) => (
+            <div key={crew.id} style={rowStyle}>
+              <div>
+                <div style={lineNameStyle}>{crew.label}</div>
+                <div style={lineSubStyle}>{crew.days} day{crew.days !== 1 ? "s" : ""} × ${fmt(crew.rate)}/day estimated non-union</div>
+              </div>
+              <span style={amountStyle}>${fmt(crew.total)}</span>
+            </div>
+          ))}
         </>
       )}
 
@@ -2253,6 +2323,68 @@ function ExtraScreens({
               <div className="field">
                 <label>Deadline tightness</label>
                 <Seg options={RUSH_OPTIONS} value={deal.rush} onChange={(v) => setDeal((d) => ({ ...d, rush: v }))} />
+              </div>
+
+              <div className="field">
+                <label>Additional crew</label>
+                <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 10 }}>
+                  Optional non-union day-rate estimates for extra crew. Confirm final quotes directly with each crew member.
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {ADDITIONAL_CREW_OPTIONS.map((crew) => {
+                    const active = (deal.additionalCrew ?? []).includes(crew.id);
+                    const dayCount =
+                      crew.phase === "post"
+                        ? Math.max(deal.editDays, 1)
+                        : crew.phase === "shoot"
+                          ? Math.max(deal.shootDays, 1)
+                          : Math.max(deal.shootDays + deal.editDays, 1);
+                    return (
+                      <button
+                        key={crew.id}
+                        type="button"
+                        onClick={() => setDeal((d) => ({
+                          ...d,
+                          additionalCrew: active
+                            ? (d.additionalCrew ?? []).filter((id) => id !== crew.id)
+                            : [...(d.additionalCrew ?? []), crew.id],
+                        }))}
+                        style={{
+                          padding: "10px 11px",
+                          borderRadius: 12,
+                          border: `1px solid ${active ? "rgba(232,197,122,0.4)" : "var(--border)"}`,
+                          background: active ? "rgba(232,197,122,0.07)" : "var(--surface)",
+                          color: active ? "var(--text)" : "var(--text-2)",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          textAlign: "left",
+                        }}
+                      >
+                        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 3 }}>{crew.label}</div>
+                        <div style={{ fontSize: 11, color: active ? "var(--gold)" : "var(--text-3)" }}>
+                          ${fmt(crew.dayRate)}/day · {dayCount} day{dayCount !== 1 ? "s" : ""}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {(deal.additionalCrew ?? []).length > 0 && (
+                  <div style={{ marginTop: 9, padding: "9px 12px", borderRadius: 10, background: "rgba(232,197,122,0.05)", border: "1px solid rgba(232,197,122,0.18)" }}>
+                    <div style={{ fontSize: 11, color: "var(--gold)", fontWeight: 700 }}>
+                      +${fmt((deal.additionalCrew ?? []).reduce((sum, id) => {
+                        const crew = ADDITIONAL_CREW_OPTIONS.find((item) => item.id === id);
+                        if (!crew) return sum;
+                        const dayCount =
+                          crew.phase === "post"
+                            ? Math.max(deal.editDays, 1)
+                            : crew.phase === "shoot"
+                              ? Math.max(deal.shootDays, 1)
+                              : Math.max(deal.shootDays + deal.editDays, 1);
+                        return sum + crew.dayRate * dayCount;
+                      }, 0))} estimated crew added
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="field">
                 <label>Usage rights</label>
