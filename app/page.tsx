@@ -3458,6 +3458,8 @@ export default function Page() {
   const [rateDetail, setRateDetail] = useState("");
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [loadingStep, setLoadingStep] = useState(0);
+  const [showSplash, setShowSplash] = useState(true);
+  const [splashFading, setSplashFading] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const analysisDealRef = useRef<Deal>(defaultDeal);
 
@@ -3616,6 +3618,15 @@ export default function Page() {
     [],
   );
 
+  useEffect(() => {
+    const fadeTimer = setTimeout(() => setSplashFading(true), 1400);
+    const hideTimer = setTimeout(() => setShowSplash(false), 2000);
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(hideTimer);
+    };
+  }, []);
+
   const score = result?.score ?? 8;
   const scoreOffset = SCORE_CIRC * (1 - score / 10);
 
@@ -3624,6 +3635,56 @@ export default function Page() {
       <style dangerouslySetInnerHTML={{ __html: MIMS_CSS }} />
       <div className="mims-shell">
       <div className="app">
+        {showSplash && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 200,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              background:
+                "radial-gradient(420px 240px at 50% 35%, rgba(232,197,122,0.12), transparent 70%), radial-gradient(420px 240px at 50% 55%, rgba(255,122,102,0.1), transparent 70%), var(--bg)",
+              opacity: splashFading ? 0 : 1,
+              transition: "opacity 0.6s ease",
+              pointerEvents: "none",
+            }}
+          >
+            <div
+              style={{
+                width: 86,
+                height: 86,
+                borderRadius: 26,
+                background: "var(--grad)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#1a1306",
+                fontSize: 40,
+                fontWeight: 900,
+                letterSpacing: "-0.06em",
+                boxShadow: "0 30px 70px rgba(255,122,102,0.28), 0 12px 36px rgba(232,197,122,0.2)",
+                transform: splashFading ? "scale(0.96)" : "scale(1)",
+                transition: "transform 0.6s ease",
+              }}
+            >
+              M
+            </div>
+            <div
+              style={{
+                marginTop: 22,
+                fontSize: 22,
+                fontWeight: 800,
+                letterSpacing: "-0.03em",
+                color: "var(--text)",
+              }}
+            >
+              Make it make sense
+            </div>
+          </div>
+        )}
         {/* Welcome */}
         <div className={screenClass(screen, "welcome")}>
           <div className="screen-pad no-pad-bottom" style={{ padding: 0 }}>
