@@ -477,10 +477,10 @@ function computeRecommendation(
     postDayRate: Math.round(postDayRate * compositeMult),
     editDays: deal.editDays,
     postSubtotal: Math.round(edit * compositeMult),
-    hasColor: profile.extras.includes("color"),
-    hasSound: profile.extras.includes("sound"),
-    colorAlloc: profile.extras.includes("color") ? Math.round(edit * compositeMult * 0.15) : 0,
-    soundAlloc: profile.extras.includes("sound") ? Math.round(edit * compositeMult * 0.12) : 0,
+    hasColor: profile.extras.some((extra) => extra.toLowerCase().includes("color")),
+    hasSound: profile.extras.some((extra) => extra.toLowerCase().includes("sound")),
+    colorAlloc: profile.extras.some((extra) => extra.toLowerCase().includes("color")) ? Math.round(edit * compositeMult * 0.15) : 0,
+    soundAlloc: profile.extras.some((extra) => extra.toLowerCase().includes("sound")) ? Math.round(edit * compositeMult * 0.12) : 0,
     usageLicense: Math.round(usageLicense * compositeMult),
     isMultiRole,
     isUnion,
@@ -1064,6 +1064,157 @@ function IconBack({ onClick }: { onClick: () => void }) {
         <path d="M15 6l-6 6 6 6" />
       </svg>
     </button>
+  );
+}
+
+function SkillsMultiSearch({
+  values,
+  onChange,
+}: {
+  values: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const filtered = (query.trim()
+    ? NOVA_ROLES.filter((role) => role.toLowerCase().includes(query.toLowerCase()))
+    : POPULAR_ROLES
+  )
+    .filter((role) => !values.includes(role))
+    .slice(0, 14);
+
+  useEffect(() => {
+    function outside(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", outside);
+    return () => document.removeEventListener("mousedown", outside);
+  }, []);
+
+  const addSkill = (skill: string) => {
+    if (!values.includes(skill)) onChange([...values, skill]);
+    setQuery("");
+    setOpen(false);
+    inputRef.current?.focus();
+  };
+
+  const removeSkill = (skill: string) => {
+    onChange(values.filter((value) => value !== skill));
+  };
+
+  return (
+    <div ref={wrapperRef}>
+      {values.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+          {values.map((skill) => (
+            <button
+              key={skill}
+              type="button"
+              onClick={() => removeSkill(skill)}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 7,
+                padding: "7px 10px",
+                borderRadius: 999,
+                border: "1px solid rgba(232,197,122,0.3)",
+                background: "rgba(232,197,122,0.07)",
+                color: "var(--text)",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {skill}
+              <span style={{ color: "var(--gold)", fontSize: 14, lineHeight: 1 }}>×</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div style={{ position: "relative" }}>
+        <svg
+          width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+          style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--text-3)", pointerEvents: "none", zIndex: 1 }}
+        >
+          <circle cx="11" cy="11" r="8" />
+          <path d="M21 21l-4.35-4.35" />
+        </svg>
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder="Search 200+ skills and positions…"
+          value={query}
+          autoComplete="off"
+          onFocus={() => setOpen(true)}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+          style={{
+            width: "100%",
+            background: "var(--surface)",
+            border: `1px solid ${open ? "var(--gold)" : "var(--border)"}`,
+            borderRadius: open ? "12px 12px 0 0" : "12px",
+            padding: "14px 14px 14px 42px",
+            color: "var(--text)", fontSize: 15, fontFamily: "inherit",
+            outline: "none",
+            transition: "border-color 0.15s ease",
+            boxSizing: "border-box",
+          }}
+        />
+      </div>
+
+      {open && (
+        <div style={{
+          background: "var(--elevated)",
+          border: "1px solid var(--gold)",
+          borderTop: "1px solid var(--border)",
+          borderRadius: "0 0 12px 12px",
+          overflowY: "auto",
+          maxHeight: 224,
+          boxShadow: "0 16px 40px rgba(0,0,0,0.4)",
+        }}>
+          {!query.trim() && (
+            <div style={{ padding: "10px 16px 4px", fontSize: 11, color: "var(--text-3)", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>
+              Popular
+            </div>
+          )}
+          {filtered.length === 0 ? (
+            <div style={{ padding: "14px 16px", fontSize: 13, color: "var(--text-3)" }}>
+              No available match
+            </div>
+          ) : filtered.map((skill, i) => (
+            <button
+              key={skill}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); addSkill(skill); }}
+              style={{
+                display: "block", width: "100%", textAlign: "left",
+                padding: "11px 16px",
+                background: "transparent",
+                border: "none",
+                borderTop: i > 0 ? "1px solid var(--border)" : "none",
+                color: "var(--text)",
+                fontSize: 14, cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = "rgba(232,197,122,0.07)";
+                (e.currentTarget as HTMLButtonElement).style.color = "var(--gold)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                (e.currentTarget as HTMLButtonElement).style.color = "var(--text)";
+              }}
+            >
+              {skill}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -3544,15 +3695,11 @@ export default function Page() {
                 </div>
                 <h3 style={{ marginTop: 18 }}>Other skills you offer</h3>
                 <p className="muted small" style={{ margin: "6px 0 12px" }}>
-                  Selecting more raises your value ceiling on bundled scopes.
+                  Search and add every role or skill you can credibly cover.
                 </p>
-                <ChipGroup
-                  options={EXTRA_OPTIONS}
+                <SkillsMultiSearch
                   values={profile.extras}
-                  multi
-                  onChange={(v) =>
-                    setProfile((p) => ({ ...p, extras: v as string[] }))
-                  }
+                  onChange={(v) => setProfile((p) => ({ ...p, extras: v }))}
                 />
                 <div className="divider" />
                 <div className="btn-row">
