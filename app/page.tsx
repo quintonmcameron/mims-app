@@ -239,64 +239,289 @@ function getLocationMarketMultiplier(location: string): number {
   return 1;
 }
 
-type RoleRateBand = {
-  keywords: string[];
-  base: number;
-  min: number;
-  max: number;
+const VETERAN_ROLE_DAY_RATES: Record<string, number> = {
+  "1st AC": 650,
+  "1st AD": 850,
+  "2nd 2nd AC": 450,
+  "2nd AC": 500,
+  "2nd AD": 650,
+  "2nd Unit 1st AC": 650,
+  "2nd Unit 1st AD": 850,
+  "2nd Unit 2nd AC": 500,
+  "2nd Unit 2nd AD": 650,
+  "2nd Unit DP": 1200,
+  "2nd Unit Director": 1200,
+  "2nd Unit Electric": 550,
+  "2nd Unit Gaffer": 750,
+  "2nd Unit Grip": 550,
+  "3D Artist": 800,
+  "3rd AD": 500,
+  "4th AD": 450,
+  "AD": 850,
+  "ADA": 850,
+  "AI Artist": 900,
+  "Additional Photography": 1200,
+  "Aerial Cinematographer": 1500,
+  "Animal Trainer": 1000,
+  "Animal Wrangler": 750,
+  "Animation Supervisor": 1100,
+  "Animator": 750,
+  "Armorer": 950,
+  "Art Coordinator": 550,
+  "Art Department": 550,
+  "Art Director": 950,
+  "Art Production Assistant": 350,
+  "Art Rigger": 600,
+  "Assistant Animator": 500,
+  "Assistant Editor": 450,
+  "Assistant Electrician": 500,
+  "Assistant Lighting Tech": 500,
+  "Associate Creative Director": 1100,
+  "Associate Producer": 700,
+  "Associate Production Manager": 650,
+  "Audio Engineer": 750,
+  "Audio Visual Technician": 550,
+  "B Cam 1st AC": 650,
+  "B Cam 2nd AC": 500,
+  "B Camera Operator": 850,
+  "BTS Photographer": 650,
+  "BTS Videographer": 700,
+  "Best Boy Electric": 650,
+  "Best Boy Grip": 650,
+  "Boom Operator": 550,
+  "Braider": 650,
+  "CG Artist": 800,
+  "Camera Operator": 850,
+  "Casting Assistant": 400,
+  "Casting Associate": 600,
+  "Casting Director": 1000,
+  "Chief Lighting Technician": 800,
+  "Choreographer": 1100,
+  "Co-Director": 1500,
+  "Color Assistant": 450,
+  "Color Producer": 800,
+  "Colorist": 1100,
+  "Composer": 1200,
+  "Compositor": 800,
+  "Concept Artist": 750,
+  "Content Creator": 700,
+  "Copywriter": 750,
+  "Costume Assistant": 450,
+  "Costume Designer": 950,
+  "Crane Operator": 850,
+  "Creative Assistant": 450,
+  "Creative Director": 1400,
+  "Creative Producer": 1100,
+  "Creative Strategist": 950,
+  "Cyclo Operator": 600,
+  "DIT": 850,
+  "DMX Technician": 750,
+  "Dancer": 600,
+  "Data Manager": 600,
+  "Design Assistant": 450,
+  "Designer": 750,
+  "Digital Designer": 750,
+  "Digitech": 650,
+  "Dimmer Board Operator": 700,
+  "Director": 1800,
+  "Director of Photography": 1500,
+  "Director's Assistant": 450,
+  "Dolly Grip": 650,
+  "Drone Operator": 1000,
+  "Editor": 900,
+  "Electric": 550,
+  "Event Producer": 900,
+  "Executive Assistant": 450,
+  "Executive Producer": 1600,
+  "Experiential Producer": 1100,
+  "FPV Drone Pilot": 1300,
+  "Fabricator": 650,
+  "Fashion Assistant": 400,
+  "Fashion Designer": 950,
+  "Fashion Illustrator": 650,
+  "Fashion Intern": 300,
+  "Film Loader": 450,
+  "Finishing Artist": 1000,
+  "Fixer": 800,
+  "Fixtures Technician": 650,
+  "Florist": 650,
+  "Focus Puller": 650,
+  "Foley Artist": 700,
+  "Food Stylist": 900,
+  "Gaffer": 800,
+  "Garment Production Manager": 800,
+  "Gimbal Operator": 850,
+  "Graphic Designer": 650,
+  "Greensman": 550,
+  "Grip": 550,
+  "Grip Assistant": 450,
+  "Groomer": 750,
+  "Hair & Makeup Artist": 850,
+  "Hair & Makeup Assistant": 450,
+  "Hair Assistant": 450,
+  "Hair Stylist": 750,
+  "Head Fixtures Technician": 800,
+  "Illustrator": 650,
+  "Interior Designer": 850,
+  "Intern": 300,
+  "Intimacy Coordinator": 900,
+  "Jib Crane Tech": 700,
+  "Jib Operator": 850,
+  "Jib Tech": 650,
+  "Key Grip": 800,
+  "Key Scenic Painter": 700,
+  "Layout Artist": 650,
+  "Lead Animator": 1100,
+  "Lead Compositor": 1100,
+  "Lead Crane Tech": 800,
+  "Lead Rigger": 750,
+  "Leadman": 700,
+  "Lighting Assistant": 450,
+  "Lighting Console Programmer": 850,
+  "Lighting Designer": 1000,
+  "Lighting Director": 1100,
+  "Lighting Tech": 550,
+  "Line Producer": 1200,
+  "Live Editor": 850,
+  "Live Show Designer": 1200,
+  "Location Manager": 750,
+  "Location Scout": 600,
+  "Lot Best Boy": 600,
+  "Makeup Artist": 750,
+  "Makeup Assistant": 450,
+  "Manicurist": 600,
+  "Marketing Coordinator": 550,
+  "Marketing Director": 1300,
+  "Marketing Manager": 900,
+  "Motion Designer": 850,
+  "Movement Coach": 850,
+  "Movement Director": 1100,
+  "Music Supervisor": 950,
+  "Music Supervisor Assistant": 450,
+  "Nail Artist": 650,
+  "Nail Assistant": 400,
+  "Office PA": 350,
+  "Omega AR Operator": 1300,
+  "PA": 350,
+  "Packaging Designer": 750,
+  "Pattern Maker": 700,
+  "Photo Assistant": 450,
+  "Photographer": 900,
+  "Picture Car Coordinator": 650,
+  "Post Producer": 950,
+  "Post Production Assistant": 350,
+  "Post Production Coordinator": 550,
+  "Post Sound Mixer": 850,
+  "Post Supervisor": 900,
+  "Prep Supervisor": 750,
+  "Producer": 1300,
+  "Product Designer": 950,
+  "Production Assistant": 350,
+  "Production Coordinator": 550,
+  "Production Designer": 1100,
+  "Production Manager": 850,
+  "Production Supervisor": 750,
+  "Project Manager": 850,
+  "Projection Mapping Specialist": 950,
+  "Prop Maker": 650,
+  "Prop Master": 850,
+  "Prop Stylist": 800,
+  "Pyrotechnician": 1000,
+  "Remote Head Tech": 750,
+  "Render Artist": 750,
+  "Retoucher": 650,
+  "Rig AC": 550,
+  "Rigging BBER": 650,
+  "Rigging BBGR": 650,
+  "Rigging BBE": 650,
+  "Rigging BBG": 650,
+  "Rigging Electrician": 550,
+  "Rigging Gaffer": 800,
+  "Rigging Grip": 550,
+  "Rigging Key Grip": 800,
+  "SFX Coordinator": 600,
+  "SFX Makeup Artist": 850,
+  "SFX Supervisor": 1100,
+  "SFX Technician": 700,
+  "Scenic Painter": 550,
+  "Script Supervisor": 700,
+  "Seamstress": 550,
+  "Set Builder": 600,
+  "Set Carpenter": 600,
+  "Set Decorator": 800,
+  "Set Designer": 850,
+  "Set Dresser": 550,
+  "Set Lighting Technician": 550,
+  "Social Media Manager": 650,
+  "Social Media Strategist": 800,
+  "Sound Designer": 850,
+  "Sound Mixer": 950,
+  "Spatial Designer": 900,
+  "Stage Designer": 900,
+  "Steadicam Operator": 1400,
+  "Storyboard Artist": 700,
+  "Streaming Engineer": 850,
+  "Stunt Coordinator": 1100,
+  "Stunt Rigger": 750,
+  "Stunt Safety Rigger": 800,
+  "Stylist": 900,
+  "Stylist Assistant": 450,
+  "Supervising Producer": 1100,
+  "Swing": 550,
+  "Switch Board Operator": 550,
+  "Tailor": 650,
+  "Technical Director": 1200,
+  "Technocrane Operator": 950,
+  "Technocrane Tech": 750,
+  "Title Designer": 700,
+  "Treatment Designer": 750,
+  "Trinity Operator": 1400,
+  "Truck PA": 350,
+  "UI/UX Designer": 900,
+  "Underwater Camera Operator": 1200,
+  "Underwater Grip": 700,
+  "Underwater Lighting Tech": 700,
+  "Unit Production Manager": 950,
+  "Utility Sound Tech": 450,
+  "VFX Artist": 750,
+  "VFX Supervisor": 1200,
+  "VTR": 600,
+  "Video Growth Engineer": 950,
+  "Videographer": 800,
+  "Visual Researcher": 650,
+  "Web Designer": 800,
+  "Web Developer": 900,
+  "Writer": 950,
 };
 
-const ROLE_RATE_BANDS: RoleRateBand[] = [
-  { keywords: ["production assistant", "office pa", "truck pa", "pa"], base: 300, min: 250, max: 450 },
-  { keywords: ["director of photography", "2nd unit dp", "dp"], base: 900, min: 550, max: 1800 },
-  { keywords: ["director", "co-director", "2nd unit director"], base: 1200, min: 700, max: 2600 },
-  { keywords: ["producer", "executive producer", "supervising producer", "creative producer"], base: 1250, min: 650, max: 2500 },
-  { keywords: ["1st ad", "assistant director"], base: 900, min: 550, max: 1600 },
-  { keywords: ["camera operator", "b camera operator", "underwater camera operator"], base: 700, min: 450, max: 1300 },
-  { keywords: ["1st ac", "focus puller", "rig ac"], base: 650, min: 400, max: 1100 },
-  { keywords: ["gaffer", "key grip", "best boy", "electric", "grip", "lighting tech"], base: 650, min: 400, max: 1200 },
-  { keywords: ["sound mixer", "boom operator", "utility sound", "audio engineer"], base: 650, min: 400, max: 1200 },
-  { keywords: ["editor", "assistant editor", "live editor"], base: 750, min: 300, max: 1600 },
-  { keywords: ["colorist", "finishing artist"], base: 700, min: 450, max: 1500 },
-  { keywords: ["vfx", "compositor", "cg artist", "render artist"], base: 850, min: 500, max: 1800 },
-  { keywords: ["motion designer", "animator", "lead animator", "animation supervisor"], base: 750, min: 400, max: 1600 },
-  { keywords: ["graphic designer", "digital designer", "illustrator", "layout artist"], base: 550, min: 300, max: 1200 },
-  { keywords: ["web developer", "web designer", "ui/ux designer", "product designer"], base: 700, min: 400, max: 1600 },
-  { keywords: ["creative director", "art director"], base: 1000, min: 550, max: 2200 },
-  { keywords: ["production manager", "unit production manager", "line producer"], base: 800, min: 500, max: 1500 },
-  { keywords: ["production coordinator", "post production coordinator", "art coordinator"], base: 500, min: 300, max: 900 },
-  { keywords: ["videographer", "photographer", "content creator", "bts"], base: 700, min: 350, max: 1500 },
-  { keywords: ["drone operator", "aerial cinematographer", "fpv drone pilot"], base: 800, min: 500, max: 1600 },
-  { keywords: ["hair", "makeup", "groomer", "manicurist", "nail"], base: 800, min: 350, max: 1400 },
-  { keywords: ["stylist", "costume designer", "food stylist", "prop stylist"], base: 700, min: 350, max: 1400 },
-  { keywords: ["copywriter", "writer", "social media", "marketing"], base: 550, min: 300, max: 1200 },
-  { keywords: ["composer", "sound designer", "post sound mixer", "music supervisor"], base: 650, min: 400, max: 1400 },
-];
-
-function getRoleRateBand(role: string): RoleRateBand {
+function getVeteranRoleRate(role: string): number {
+  if (VETERAN_ROLE_DAY_RATES[role]) return VETERAN_ROLE_DAY_RATES[role];
   const normalizedRole = role.toLowerCase();
-  const exactOrIncluded = ROLE_RATE_BANDS.find((band) =>
-    band.keywords.some((keyword) => normalizedRole === keyword || (keyword.length > 3 && normalizedRole.includes(keyword)))
-  );
-  if (exactOrIncluded) return exactOrIncluded;
+  const matchedKey = Object.keys(VETERAN_ROLE_DAY_RATES).find((key) => key.toLowerCase() === normalizedRole);
+  if (matchedKey) return VETERAN_ROLE_DAY_RATES[matchedKey];
 
   const mode = getRoleDayMode(role);
-  if (mode === "post") return { keywords: [], base: 650, min: 350, max: 1400 };
-  if (mode === "design") return { keywords: [], base: 600, min: 300, max: 1300 };
-  if (mode === "dual") return { keywords: [], base: 700, min: 350, max: 1500 };
-  return { keywords: [], base: 550, min: 300, max: 1200 };
+  if (mode === "post") return 850;
+  if (mode === "design") return 750;
+  if (mode === "dual") return 900;
+  return 650;
 }
 
 function getEstimatedBaseDayRate(profile: Profile, role: string, isUnion = false, matchUnionRates = false): number {
-  const selectedRole = role || profile.trade;
-  const band = getRoleRateBand(selectedRole);
-  const expMult =
-    ({ "0-1": 0.72, "1-3": 0.86, "3-5": 1, "5-10": 1.2, "10+": 1.45 } as Record<string, number>)[profile.experience || "3-5"] ?? 1;
-  const skillMult =
-    ({ emerging: 0.9, mid: 1, senior: 1.15, expert: 1.35 } as Record<string, number>)[profile.skill || "mid"] ?? 1;
+  const veteranBase = getVeteranRoleRate(role || profile.trade);
+  const tierMult =
+    ({
+      beginner: 0.6,
+      mid: 0.8,
+      expert: 1,
+      "0-1": 0.6,
+      "1-3": 0.7,
+      "3-5": 0.8,
+      "5-10": 0.9,
+      "10+": 1,
+    } as Record<string, number>)[profile.experience || profile.skill || "mid"] ?? 0.8;
   const unionFloorMult = isUnion || matchUnionRates ? 1.18 : 1;
-  const estimated = band.base * expMult * skillMult * unionFloorMult;
-  return Math.round(Math.max(band.min, Math.min(band.max, estimated)) / 25) * 25;
+  return Math.round((veteranBase * tierMult * unionFloorMult) / 25) * 25;
 }
 
 function getPublicFootprintMultiplier(deal: Deal): number {
@@ -636,18 +861,9 @@ const TRADE_OPTIONS = [
 ];
 
 const EXP_OPTIONS = [
-  { id: "0-1", label: "Less than 1 year" },
-  { id: "1-3", label: "1–3 years" },
-  { id: "3-5", label: "3–5 years" },
-  { id: "5-10", label: "5–10 years" },
-  { id: "10+", label: "10+ years" },
-];
-
-const SKILL_OPTIONS = [
-  { id: "emerging", label: "Emerging" },
+  { id: "beginner", label: "Beginner" },
   { id: "mid", label: "Mid-level" },
-  { id: "senior", label: "Senior" },
-  { id: "expert", label: "Expert / specialist" },
+  { id: "expert", label: "Expert" },
 ];
 
 const EXTRA_OPTIONS = [
@@ -850,8 +1066,8 @@ const DEMO_PROFILE = {
   name: "Quinton Cameron",
   email: "quinton@qcfilms.co",
   trade: "videographer",
-  experience: "5-10",
-  skill: "senior",
+  experience: "expert",
+  skill: "expert",
   location: "Atlanta, GA",
   extras: ["color", "sound", "motion"],
 };
@@ -2095,10 +2311,9 @@ function analyzeProfessionalHighlights(input: {
 
   let detectedExpTier: string | null = null;
   let detectedSkillTier: string | null = null;
-  if (maxYears >= 10) { detectedExpTier = "10+"; detectedSkillTier = "expert"; }
-  else if (maxYears >= 5) { detectedExpTier = "5-10"; detectedSkillTier = "senior"; }
-  else if (maxYears >= 3) { detectedExpTier = "3-5"; detectedSkillTier = "mid"; }
-  else if (maxYears >= 1) { detectedExpTier = "1-3"; detectedSkillTier = "mid"; }
+  if (maxYears >= 5) { detectedExpTier = "expert"; detectedSkillTier = "expert"; }
+  else if (maxYears >= 2) { detectedExpTier = "mid"; detectedSkillTier = "mid"; }
+  else if (maxYears >= 1) { detectedExpTier = "beginner"; detectedSkillTier = "beginner"; }
 
   const matchedKeywords: string[] = [];
   for (const kw of HIGH_VALUE_KEYWORDS) {
@@ -2126,8 +2341,7 @@ function analyzeProfessionalHighlights(input: {
 function buildPresetObjections(profile: Profile, leverageScore: number | null): ObjectionEntry[] {
   const trade = profile.trade || "creative professional";
   const exp = profile.experience;
-  const years = exp === "10+" ? "10+ years" : exp === "5-10" ? "5–10 years" : exp === "3-5" ? "3–5 years" : exp === "1-3" ? "1–3 years" : "several years";
-  const skillAdj = profile.skill === "expert" ? "specialist-level" : profile.skill === "senior" ? "senior-level" : profile.skill === "mid" ? "mid-level" : "";
+  const levelLabel = exp === "expert" || exp === "10+" || exp === "5-10" ? "expert-level" : exp === "mid" || exp === "3-5" || exp === "1-3" ? "mid-level" : "beginner-level";
   const lv = leverageScore ?? 5;
   const tierLabel = lv >= 8 ? "Lead / Executive" : lv >= 6 ? "Senior" : lv >= 4 ? "Mid-level" : "Emerging";
   const extras = profile.extras.length > 0 ? ` and ${profile.extras.slice(0, 2).join(" / ")} capabilities` : "";
@@ -2144,7 +2358,7 @@ function buildPresetObjections(profile: Profile, leverageScore: number | null): 
       id: "rate-high",
       label: "Your rate looks too high — can we do a flat package?",
       script: [
-        `Given my ${years} of ${skillAdj} ${trade} experience${extras}, this estimate reflects the quality level, timeline pressure, and delivery responsibility attached to this project.`,
+        `Given my ${levelLabel} ${trade} work${extras}, this estimate reflects the quality level, timeline pressure, and delivery responsibility attached to this project.`,
         ...(resumeLine ? [resumeLine] : []),
         `If the total feels heavy, move the conversation into scope design. Identify the result they need most, then separate must-have deliverables from items that can wait.`,
         `A cleaner option is to reduce or phase deliverables while keeping the professional rate intact. That protects the work standard and still gives the client a path forward.`,
@@ -2160,7 +2374,7 @@ function buildPresetObjections(profile: Profile, leverageScore: number | null): 
       id: "no-usage",
       label: "We don't have budget for usage rights — can we just buy the raw footage?",
       script: [
-        `Standard project delivery includes polished final master assets as produced by a ${tierLabel}-tier ${trade} with ${years} of professional experience. Unedited archive files carry a separate transfer fee.`,
+        `Standard project delivery includes polished final master assets as produced by a ${tierLabel}-tier ${trade}. Unedited archive files carry a separate transfer fee.`,
         `Usage pricing is tied to where the work appears, how long it runs, and how much commercial benefit the client expects from it.`,
         `Offer a shorter license or narrower channel list if they need a lower starting point. That keeps the first agreement manageable without giving away future commercial use.`,
         `I can structure a 6-month organic-only license at a reduced fee. If the work later moves into paid media, broadcast, or broader distribution, we can price that expanded use separately.`,
@@ -2175,7 +2389,7 @@ function buildPresetObjections(profile: Profile, leverageScore: number | null): 
       id: "volume-discount",
       label: "Can you discount this if we promise high-volume future work?",
       script: [
-        `As a ${tierLabel} ${trade} with ${years} of professional experience${extras}, I keep one-off project pricing separate from ongoing partnership pricing.`,
+        `As a ${tierLabel} ${trade}${extras}, I keep one-off project pricing separate from ongoing partnership pricing.`,
         `If there is real volume coming, turn it into a written monthly commitment with a clear start date, deliverable count, and payment schedule.`,
         `That gives the client planning certainty while keeping your current project from being discounted based on work that is not yet confirmed.`,
         `I would rather build a committed 3-month plan around the standard rate than reduce this project for possible future work. Let us define what the monthly scope would include.`,
@@ -2194,8 +2408,7 @@ function generateCustomCounter(input: string, profile: Profile, leverageScore: n
   const r = input.toLowerCase();
   const trade = profile.trade || "creative professional";
   const exp = profile.experience;
-  const years = exp === "10+" ? "10+ years" : exp === "5-10" ? "5–10 years" : exp === "3-5" ? "3–5 years" : exp === "1-3" ? "1–3 years" : "several years";
-  const skillAdj = profile.skill === "expert" ? "specialist-level" : profile.skill === "senior" ? "senior-level" : profile.skill === "mid" ? "mid-level" : "";
+  const levelLabel = exp === "expert" || exp === "10+" || exp === "5-10" ? "expert-level" : exp === "mid" || exp === "3-5" || exp === "1-3" ? "mid-level" : "beginner-level";
   const lv = leverageScore ?? 5;
   const tierLabel = lv >= 8 ? "Lead / Executive" : lv >= 6 ? "Senior" : lv >= 4 ? "Mid-level" : "Emerging";
   const extras = profile.extras.length > 0 ? `, with specialized capabilities in ${profile.extras.slice(0, 2).join(" and ")}` : "";
@@ -2212,7 +2425,7 @@ function generateCustomCounter(input: string, profile: Profile, leverageScore: n
     const ltvNum = parseMoney(intelLtv);
     const roiLine = (breakEven != null && ltvNum > 0)
       ? `Based on the target performance estimate and an average transaction value of $${fmt(ltvNum)}, this project needs about ${breakEven} conversion${breakEven !== 1 ? "s" : ""} to cover the production investment. Use that math to keep the discussion focused on the business result, not just the line-item cost.`
-      : `Given my ${years} of ${skillAdj} ${trade} experience${extras}, the rate reflects the project responsibility, delivery standard, and timeline. Bring the conversation back to the result the work is supposed to create.`;
+      : `Given my ${levelLabel} ${trade} work${extras}, the rate reflects the project responsibility, delivery standard, and timeline. Bring the conversation back to the result the work is supposed to create.`;
     return {
       role: "coach",
       script: [
@@ -2233,7 +2446,7 @@ function generateCustomCounter(input: string, profile: Profile, leverageScore: n
     return {
       role: "coach",
       script: [
-        `As a ${tierLabel} ${trade} with ${years} of professional experience${extras}, possible future work should be handled as a separate ongoing agreement, not as a discount on today's project.`,
+        `As a ${tierLabel} ${trade}${extras}, possible future work should be handled as a separate ongoing agreement, not as a discount on today's project.`,
         ...(resumeLine ? [resumeLine] : []),
         `I am excited about an ongoing collaboration. Let us put a monthly agreement in place with defined deliverables, timing, and payment terms.`,
         `Keep this project priced on its own merits. If they want volume pricing, ask for a clear commitment that both sides can plan around.`,
@@ -2248,7 +2461,7 @@ function generateCustomCounter(input: string, profile: Profile, leverageScore: n
   return {
     role: "coach",
     script: [
-      `When a client raises a concern, slow the pace and clarify what is underneath it. As a ${tierLabel} ${trade} with ${years} of experience${extras}, your job is to connect the scope to the result they need.`,
+      `When a client raises a concern, slow the pace and clarify what is underneath it. As a ${tierLabel} ${trade}${extras}, your job is to connect the scope to the result they need.`,
       ...(resumeLine ? [resumeLine] : []),
       `Help me understand what is driving that concern — is it about the total investment, the timeline, or what is included in the scope?`,
       `Strong client communication starts with listening. Ask a clear follow-up question before offering a revised number or revised scope.`,
@@ -3586,8 +3799,8 @@ export default function Page() {
       showToast("Pick a trade to continue");
       return;
     }
-    if (setupStep === 2 && (!profile.experience || !profile.skill)) {
-      showToast("Pick experience and skill level");
+    if (setupStep === 2 && !profile.experience) {
+      showToast("Pick your current level");
       return;
     }
     if (setupStep === 3) {
@@ -3792,7 +4005,7 @@ export default function Page() {
               {[
                 {
                   title: "Fair-market rate, not friend pricing",
-                  desc: "Real benchmarks for your trade, experience, and city.",
+                  desc: "Real benchmarks for your trade, level, and city.",
                   icon: (
                     <path d="M12 1v22M5 8h11.5a3.5 3.5 0 010 7H7.5a3.5 3.5 0 000 7H19" />
                   ),
@@ -3898,23 +4111,14 @@ export default function Page() {
 
             {setupStep === 2 && (
               <>
-                <h2>How long have you been doing this?</h2>
+                <h2>What level are you operating at?</h2>
                 <p className="muted small" style={{ margin: "6px 0 18px" }}>
-                  Be honest — the rate engine is too.
+                  Pick the level that best reflects what you can execute today, not just how many years you have been working.
                 </p>
                 <ChipGroup
                   options={EXP_OPTIONS}
                   value={profile.experience}
-                  onChange={(v) => setProfile((p) => ({ ...p, experience: v as string }))}
-                />
-                <h3 style={{ marginTop: 24 }}>Your skill level</h3>
-                <p className="muted small" style={{ margin: "6px 0 12px" }}>
-                  Where would your strongest 3 clients place you?
-                </p>
-                <ChipGroup
-                  options={SKILL_OPTIONS}
-                  value={profile.skill}
-                  onChange={(v) => setProfile((p) => ({ ...p, skill: v as string }))}
+                  onChange={(v) => setProfile((p) => ({ ...p, experience: v as string, skill: v as string }))}
                 />
                 <div className="divider" />
                 <div className="btn-row">
