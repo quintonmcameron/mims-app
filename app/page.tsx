@@ -376,13 +376,13 @@ function computeRecommendation(
     headline = "Strong fit. Push for the full rate.";
     rationale =
       "Their stated range overlaps your fair rate, and the work has a clear ROI driver.";
-    verdict = `Take the meeting. Anchor at $${fmt(stretch)} (stretch minus contingency), let them negotiate down to your $${fmt(target)} fair rate.`;
+    verdict = `Take the meeting. Start with a complete scope near $${fmt(stretch)}, then simplify deliverables only if the client needs to land closer to your $${fmt(target)} fair rate.`;
   } else if (score >= 6) {
     mood = "ok";
     headline = "Workable — but you'll have to sell value.";
     rationale =
       "They can probably reach your rate, but they're likely to push back. Lead with discovery, not pricing.";
-    verdict = `Take the meeting, but don't name a number on the first call. Diagnose, then send the SOW at $${fmt(target)}.`;
+    verdict = `Take the meeting, but gather the project details before giving a number. Then send the SOW at $${fmt(target)}.`;
   } else if (score >= 4) {
     mood = "soft";
     headline = "Soft. Worth a conversation, not a discount.";
@@ -451,7 +451,7 @@ const sampleDeals: Record<string, Recommendation & { client: string }> =
       rationale:
         "Their stated range overlaps your fair rate, decision-maker is on the call, and the work has a clear ROI driver.",
       verdict:
-        "Take the meeting. Anchor at $9,800 (stretch minus contingency), let them negotiate down to your $8,400 fair rate.",
+        "Take the meeting. Start with a complete scope near $9,800, then simplify deliverables only if the client needs to land closer to your $8,400 fair rate.",
       scope: "2 shoot days + 3 edit days · organic usage",
     },
     rivian: {
@@ -608,7 +608,7 @@ const SOURCE_OPTIONS = [
   { id: "referral", label: "Referral" },
   { id: "inbound", label: "Cold inbound" },
   { id: "repeat", label: "Repeat" },
-  { id: "pitched", label: "I pitched" },
+  { id: "pitched", label: "I reached out" },
 ];
 
 const RUSH_OPTIONS = [
@@ -632,7 +632,7 @@ const DM_OPTIONS = [
 const BUDGET_OPTIONS = [
   { id: "open", label: "Open" },
   { id: "range", label: "Gave a range" },
-  { id: "anchor-low", label: "Anchored low" },
+  { id: "anchor-low", label: "Started low" },
   { id: "hidden", label: "Hiding it" },
 ];
 
@@ -733,7 +733,7 @@ const LOADING_STEPS = [
   "Researching the client…",
   "Estimating budget capacity…",
   "Scoring close-likelihood…",
-  "Crafting your negotiation playbook…",
+  "Preparing your deal guidance…",
 ];
 
 
@@ -1210,7 +1210,7 @@ function TabBar({
     },
     {
       id: "library",
-      label: "Playbook",
+      label: "Library",
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
           <path d="M4 19V5a2 2 0 012-2h12v18H6a2 2 0 01-2-2z" />
@@ -1861,15 +1861,15 @@ function buildPresetObjections(profile: Profile, leverageScore: number | null): 
       id: "rate-high",
       label: "Your rate looks too high — can we do a flat package?",
       script: [
-        `Given my ${years} of ${skillAdj} ${trade} experience${extras}, the investment reflects the calibrated ${tierLabel}-tier market rate for the quality standard and delivery speed outlined for this project.`,
-        `A flat package reframes the conversation around cost rather than outcome. Redirect by asking what a modest increase in qualified leads over the next year would mean for their business at this investment level.`,
-        `When total investment feels high, the professional response is scope adjustment — never rate reduction. Offer to reduce deliverables, not the day rate.`,
-        `Present a revised scope at the same rate, demonstrating that you protect the integrity of your pricing while remaining a flexible, collaborative partner.`,
+        `Given my ${years} of ${skillAdj} ${trade} experience${extras}, this estimate reflects the quality level, timeline pressure, and delivery responsibility attached to this project.`,
+        `If the total feels heavy, move the conversation into scope design. Identify the result they need most, then separate must-have deliverables from items that can wait.`,
+        `A cleaner option is to reduce or phase deliverables while keeping the professional rate intact. That protects the work standard and still gives the client a path forward.`,
+        `Present a smaller version of the same project, priced with the same rate logic, so the adjustment is about project size rather than the value of your labor.`,
       ],
       diagnostics: [
-        "What does a successful outcome look like for you in 90 days — and what is that outcome worth to your business?",
+        "What result would make this project feel successful 90 days from now?",
         "Which deliverable in the current scope feels optional to you right now?",
-        "If this project generates even two new clients at your average deal size, does the investment math change?",
+        "Which business result matters most: more leads, higher conversion, brand trust, or internal launch support?",
       ],
     },
     {
@@ -1877,9 +1877,9 @@ function buildPresetObjections(profile: Profile, leverageScore: number | null): 
       label: "We don't have budget for usage rights — can we just buy the raw footage?",
       script: [
         `Standard project delivery includes polished final master assets as produced by a ${tierLabel}-tier ${trade} with ${years} of professional experience. Unedited archive files carry a separate transfer fee.`,
-        `Usage rights reflect the commercial reach and revenue impact of the finished work. The broader the distribution, the greater the business value generated — and the licensing fee scales accordingly at the ${tierLabel} market tier.`,
-        `Consider offering a defined-term license scoped to specific distribution channels. This keeps the entry cost manageable while preserving your ability to renegotiate as their use expands.`,
-        `I can structure a 6-month organic-only license at a reduced fee. The moment it extends to paid media or broadcast, we put a separate agreement in place that reflects that expanded value.`,
+        `Usage pricing is tied to where the work appears, how long it runs, and how much commercial benefit the client expects from it.`,
+        `Offer a shorter license or narrower channel list if they need a lower starting point. That keeps the first agreement manageable without giving away future commercial use.`,
+        `I can structure a 6-month organic-only license at a reduced fee. If the work later moves into paid media, broadcast, or broader distribution, we can price that expanded use separately.`,
       ],
       diagnostics: [
         "Where are you planning to distribute this — owned channels, paid media, or broadcast?",
@@ -1891,13 +1891,13 @@ function buildPresetObjections(profile: Profile, leverageScore: number | null): 
       id: "volume-discount",
       label: "Can you discount this if we promise high-volume future work?",
       script: [
-        `As a ${tierLabel} ${trade} with ${years} of professional experience${extras}, I maintain consistent pricing across all engagements. The right vehicle for volume incentives is a formal retainer structure — not a discount applied retroactively to a single project.`,
-        `A discount on a current project sets a precedent that becomes your new baseline for every future conversation. Protect your rate by offering structure, not a price reduction.`,
-        `A formal retainer agreement at your full rate is the correct professional vehicle for volume-based work. It rewards consistent commitment without compromising your market positioning.`,
-        `I would rather establish a committed monthly retainer at our standard rate than discount a single project on a promise of future work. Let's define what a 3-month agreement looks like today.`,
+        `As a ${tierLabel} ${trade} with ${years} of professional experience${extras}, I keep one-off project pricing separate from ongoing partnership pricing.`,
+        `If there is real volume coming, turn it into a written monthly commitment with a clear start date, deliverable count, and payment schedule.`,
+        `That gives the client planning certainty while keeping your current project from being discounted based on work that is not yet confirmed.`,
+        `I would rather build a committed 3-month plan around the standard rate than reduce this project for possible future work. Let us define what the monthly scope would include.`,
       ],
       diagnostics: [
-        "What does high volume actually mean in practice — can we put a retainer commitment on paper today?",
+        "What does high volume actually mean in practice — how many deliverables per month?",
         "If we structure 3 months at the current rate, what monthly deliverable count can you commit to?",
         "What is the first confirmed project that would initiate this collaboration, and what is your timeline?",
       ],
@@ -1920,15 +1920,15 @@ function generateCustomCounter(input: string, profile: Profile, leverageScore: n
     const breakEven = result?.breakEvenSales;
     const ltvNum = parseMoney(intelLtv);
     const roiLine = (breakEven != null && ltvNum > 0)
-      ? `Based on the target performance projections and your average transaction value of $${fmt(ltvNum)}, this entire campaign infrastructure requires a total conversion baseline of just ${breakEven} unit${breakEven !== 1 ? "s" : ""} to break even on the production investment. Given those metrics, the statistical probability of a negative return on investment is exceptionally low, making the retention of a proven ${trade} the safest operational decision for this rollout.`
-      : `Given my ${years} of ${skillAdj} ${trade} experience${extras}, the rate reflects a ${tierLabel}-tier market position — not an arbitrary number. Redirect toward the business outcome the project is designed to deliver.`;
+      ? `Based on the target performance estimate and an average transaction value of $${fmt(ltvNum)}, this project needs about ${breakEven} conversion${breakEven !== 1 ? "s" : ""} to cover the production investment. Use that math to keep the discussion focused on the business result, not just the line-item cost.`
+      : `Given my ${years} of ${skillAdj} ${trade} experience${extras}, the rate reflects the project responsibility, delivery standard, and timeline. Bring the conversation back to the result the work is supposed to create.`;
     return {
       role: "coach",
       script: [
         roiLine,
         `I understand budget alignment is a priority. Before we adjust anything, help me understand: what is the expected outcome from this project, and what would that result be worth to your business?`,
-        `Rate hesitation is a value communication gap, not a pricing error. Clarify the expected return on investment before making any adjustments to scope or cost.`,
-        `Offer a scope reduction as the professional alternative to a rate cut. Remove a deliverable — never lower the project day rate.`,
+        `Rate hesitation often means the client needs more clarity on what the project is expected to accomplish. Confirm the business goal before changing the scope or cost.`,
+        `Offer a scope reduction as the professional alternative to a rate cut. Remove or phase a deliverable before reducing the day rate.`,
       ],
       diagnostics: [
         "What would a successful result from this project be worth to your business in real dollar terms?",
@@ -1941,9 +1941,9 @@ function generateCustomCounter(input: string, profile: Profile, leverageScore: n
     return {
       role: "coach",
       script: [
-        `As a ${tierLabel} ${trade} with ${years} of professional experience${extras}, commitments to future work belong in a formal retainer structure — not applied as a discount to the current project.`,
-        `I am excited about an ongoing collaboration. Let's put a formal retainer agreement in place at the current rate. That is the right professional structure for volume-based work.`,
-        `Discounting current work based on hypothetical future projects undermines your professional rate baseline. Offer structured commitment as the vehicle for volume incentives.`,
+        `As a ${tierLabel} ${trade} with ${years} of professional experience${extras}, possible future work should be handled as a separate ongoing agreement, not as a discount on today's project.`,
+        `I am excited about an ongoing collaboration. Let us put a monthly agreement in place with defined deliverables, timing, and payment terms.`,
+        `Keep this project priced on its own merits. If they want volume pricing, ask for a clear commitment that both sides can plan around.`,
       ],
       diagnostics: [
         "Can we put a 3-month retainer agreement on paper today at the current rate?",
@@ -1955,10 +1955,10 @@ function generateCustomCounter(input: string, profile: Profile, leverageScore: n
   return {
     role: "coach",
     script: [
-      `When facing an unexpected objection, slow down. As a ${tierLabel} ${trade} with ${years} of experience${extras}, your credentials anchor the conversation — let the outcome define the value.`,
+      `When a client raises a concern, slow the pace and clarify what is underneath it. As a ${tierLabel} ${trade} with ${years} of experience${extras}, your job is to connect the scope to the result they need.`,
       `Help me understand what is driving that concern — is it about the total investment, the timeline, or what is included in the scope?`,
-      `Effective professional communication prioritizes listening and diagnosis before prescribing a solution. Ask open-ended questions to identify the real concern.`,
-      `Redirect to outcomes: before making any adjustments, confirm alignment on what a successful result looks like and what that outcome is worth to their business.`,
+      `Strong client communication starts with listening. Ask a clear follow-up question before offering a revised number or revised scope.`,
+      `Before making any adjustments, confirm what a successful result looks like and which part of the project is most important to protect.`,
     ],
     diagnostics: [
       "What would a successful outcome from this project be worth to your business?",
@@ -2579,7 +2579,7 @@ function ExtraScreens({
         <div className="screen-pad">
           <div className="loading">
             <div className="spinner" />
-            <h2>Building your playbook</h2>
+            <h2>Building your deal guidance</h2>
             <ul className="loading-steps">
               {LOADING_STEPS.map((label, i) => {
                 const stepNum = i + 1;
@@ -2695,7 +2695,7 @@ function ExtraScreens({
                     {result.floorRate !== undefined ? `$${fmt(result.floorRate)}` : "—"}
                   </div>
                   <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-3)", lineHeight: 1.5 }}>
-                    Bare minimum. Never go below this.
+                    Minimum viable floor. Reduce scope before pricing under this line.
                   </p>
                 </div>
               </div>
@@ -2840,7 +2840,7 @@ function ExtraScreens({
               <div style={{ padding: "20px 20px 0", flexShrink: 0 }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
                   <div>
-                    <div className="eyebrow" style={{ marginBottom: 4 }}>Negotiation Suite</div>
+                    <div className="eyebrow" style={{ marginBottom: 4 }}>Deal Guidance</div>
                     <h2 style={{ margin: 0, fontSize: 19 }}>{deal.client || "This Deal"}</h2>
                   </div>
                   <button type="button" className="icon-btn" style={{ flexShrink: 0, marginLeft: 12 }} onClick={() => setShowNegoSheet(false)}>
@@ -2873,40 +2873,40 @@ function ExtraScreens({
               {negoTab === "blueprint" ? (
                 <div style={{ flex: 1, overflowY: "auto", padding: "0 20px calc(28px + var(--safe-bottom, 0px))" }}>
                   <div className="tactic">
-                    <div className="source">01 · Price the Client, Not the Job</div>
-                    <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Value Architecture</div>
+                    <div className="source">01 · Use Client Context in the Estimate</div>
+                    <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Client Context</div>
                     <p style={{ margin: 0, fontSize: 14, color: "var(--text-2)", lineHeight: 1.7 }}>
-                      Your rate of <strong style={{ color: "var(--gold)" }}>${fmt(result.target)}</strong> was not calculated from hours worked — it was anchored to{" "}
+                      Your rate of <strong style={{ color: "var(--gold)" }}>${fmt(result.target)}</strong> was built from{" "}
                       {deal.client ? <><strong style={{ color: "var(--text)" }}>{deal.client}</strong> client profile</> : "this client"}{" "}
-                      corporate scale, strategic intent, and your market position. The moment you explain your rate in hours, the conversation shifts away from business value.
+                      business size, project stakes, usage needs, and your market position. Keep the discussion connected to the outcome the work is expected to support.
                     </p>
                   </div>
 
                   <div className="tactic" style={{ marginTop: 12 }}>
-                    <div className="source">02 · Anchor to Their Target Return</div>
-                    <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Revenue Anchoring</div>
+                    <div className="source">02 · Connect the Fee to the Business Result</div>
+                    <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Result Math</div>
                     <p style={{ margin: 0, fontSize: 14, color: "var(--text-2)", lineHeight: 1.7 }}>
-                      Before naming your number, guide the conversation toward what it would mean for {deal.client || "this business"} if this creative delivered{" "}
+                      Before adjusting the number, clarify what it would mean for {deal.client || "this business"} if this creative helped produce{" "}
                       {result.breakEvenSales != null
                         ? <><strong style={{ color: "var(--gold)" }}>{result.breakEvenSales}</strong> new customer{result.breakEvenSales !== 1 ? "s" : ""}</>
                         : "measurable revenue growth"}.{" "}
-                      Let their ROI become the reference point first. Your <strong style={{ color: "var(--gold)" }}>${fmt(result.target)}</strong> investment should feel smaller than their upside.
+                      Use that business result to explain why the <strong style={{ color: "var(--gold)" }}>${fmt(result.target)}</strong> investment is sized the way it is.
                     </p>
                   </div>
 
                   <div className="tactic" style={{ marginTop: 12 }}>
-                    <div className="source">03 · Diagnose Before You Prescribe</div>
-                    <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Diagnostic Framework</div>
+                    <div className="source">03 · Clarify the Need Before Scope</div>
+                    <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Scope Check</div>
                     <p style={{ margin: 0, fontSize: 14, color: "var(--text-2)", lineHeight: 1.7 }}>
-                      Never pitch scope before running a diagnostic. Ask what success looks like in 90 days and listen for the financial outcome — not the creative preference. Their answer tells you exactly what they are willing to invest and which value argument will land.
+                      Ask what success should look like 90 days after delivery, then listen for the business priority behind the creative request. Their answer shows which deliverables matter most and which items can be phased if budget becomes tight.
                     </p>
                   </div>
 
                   <div className="tactic" style={{ marginTop: 12 }}>
-                    <div className="source">04 · Shift From Cost to Value Investment</div>
-                    <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Outcome Positioning</div>
+                    <div className="source">04 · Keep Scope Tied to Outcome</div>
+                    <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Scope Protection</div>
                     <p style={{ margin: 0, fontSize: 14, color: "var(--text-2)", lineHeight: 1.7 }}>
-                      If they flinch at <strong style={{ color: "var(--gold)" }}>${fmt(result.target)}</strong>, redirect entirely. Talk about what this is worth if it performs. The walk-away floor is <strong style={{ color: "var(--coral)" }}>${fmt(result.floorRate ?? result.floor)}</strong> — below that, the scope cannot deliver the outcome being described.
+                      If <strong style={{ color: "var(--gold)" }}>${fmt(result.target)}</strong> feels too high for the client, reduce the project size before reducing the rate logic. The floor is <strong style={{ color: "var(--coral)" }}>${fmt(result.floorRate ?? result.floor)}</strong>; below that, the scope should be simplified.
                     </p>
                   </div>
 
@@ -2927,7 +2927,7 @@ function ExtraScreens({
                           </svg>
                         </div>
                         <p style={{ margin: 0, fontSize: 13, color: "var(--text-3)", lineHeight: 1.7 }}>
-                          Tap a common client objection below,<br />or type your own to get an instant counter-script.
+                          Tap a common client concern below,<br />or type your own to get a response draft.
                         </p>
                       </div>
                     ) : simMessages.map((msg, i) => (
@@ -2937,7 +2937,7 @@ function ExtraScreens({
                             background: "var(--surface)", border: "1px solid var(--border-2)",
                             borderRadius: "14px 14px 14px 3px", padding: "11px 14px", maxWidth: "88%",
                           }}>
-                            <div style={{ fontSize: 10, color: "var(--text-3)", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, marginBottom: 5 }}>Client Objection</div>
+                            <div style={{ fontSize: 10, color: "var(--text-3)", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, marginBottom: 5 }}>Client Concern</div>
                             <p style={{ margin: 0, fontSize: 13, color: "var(--text-2)", lineHeight: 1.6 }}>{msg.objection}</p>
                           </div>
                         ) : (
@@ -2945,13 +2945,13 @@ function ExtraScreens({
                             background: "rgba(52,211,153,0.04)", border: "1px solid rgba(52,211,153,0.18)",
                             borderRadius: "3px 14px 14px 14px", padding: "13px 15px", marginTop: 8,
                           }}>
-                            <div style={{ fontSize: 10, color: "#34d399", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>Counter-Script</div>
+                            <div style={{ fontSize: 10, color: "#34d399", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>Response Draft</div>
                             {msg.script?.map((line, li) => (
                               <p key={li} style={{ margin: li < (msg.script!.length - 1) ? "0 0 9px" : 0, fontSize: 13, color: "var(--text)", lineHeight: 1.7 }}>{line}</p>
                             ))}
                             {msg.diagnostics && msg.diagnostics.length > 0 && (
                               <div style={{ marginTop: 12, padding: "10px 12px", background: "rgba(232,197,122,0.05)", borderRadius: 10, border: "1px solid rgba(232,197,122,0.15)" }}>
-                                <div style={{ fontSize: 10, color: "var(--gold)", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, marginBottom: 8 }}>Diagnostic Questions to Ask</div>
+                                <div style={{ fontSize: 10, color: "var(--gold)", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600, marginBottom: 8 }}>Follow-Up Questions</div>
                                 {msg.diagnostics.map((q, qi) => (
                                   <p key={qi} style={{ margin: qi < msg.diagnostics!.length - 1 ? "0 0 6px" : 0, fontSize: 13, color: "var(--text-2)", lineHeight: 1.6 }}>→ {q}</p>
                                 ))}
@@ -2993,7 +2993,7 @@ function ExtraScreens({
                         value={simInput}
                         onChange={(e) => setSimInput(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter" && simInput.trim()) handleSimCustom(); }}
-                        placeholder="Type a client objection to counter…"
+                        placeholder="Type a client concern…"
                         style={{
                           flex: 1, background: "var(--surface)", border: "1px solid var(--border)",
                           borderRadius: 12, padding: "11px 13px", color: "var(--text)",
@@ -3056,9 +3056,9 @@ function ExtraScreens({
 
       <div className={screenClass("library")}>
         <div className="scroll">
-          <h1>The playbook</h1>
+          <h1>Deal library</h1>
           <div className="card">
-            <div className="eyebrow">Elite Negotiation Playbook</div>
+            <div className="eyebrow">Practical Deal Guidance</div>
             <h3>Your positioning library</h3>
           </div>
         </div>
@@ -3333,8 +3333,8 @@ export default function Page() {
                   ),
                 },
                 {
-                  title: "Tactics from the best",
-                  desc: "Elite frameworks — distilled into negotiation talking points you can deploy in the room.",
+                  title: "Original MIMS guidance",
+                  desc: "Plain-language prompts for pricing, scope, usage, and client fit.",
                   icon: (
                     <>
                       <path d="M3 7h13M3 12h18M3 17h13" />
@@ -3904,9 +3904,9 @@ export default function Page() {
                   <div className="eyebrow" style={{ marginBottom: 4 }}>
                     New deal
                   </div>
-                  <h3 style={{ fontSize: 18, color: "#ffffff" }}>Start a negotiation</h3>
+                  <h3 style={{ fontSize: 18, color: "#ffffff" }}>Start a deal</h3>
                   <p className="muted small" style={{ margin: "4px 0 0" }}>
-                    3 minute questionnaire → your rate + playbook.
+                    3 minute questionnaire → your rate + deal guidance.
                   </p>
                 </div>
                 <div className="logo-mark" style={{ width: 40, height: 40, borderRadius: 14 }}>
