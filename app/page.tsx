@@ -690,7 +690,7 @@ const ANNUAL_REVENUE_OPTIONS = [
 ];
 
 const PUBLIC_AUDIENCE_OPTIONS = [
-  { id: "", label: "Unknown / not entered" },
+  { id: "", label: "Followers / unknown" },
   { id: "under-5k", label: "Under 5K" },
   { id: "5k-25k", label: "5K – 25K" },
   { id: "25k-100k", label: "25K – 100K" },
@@ -700,7 +700,7 @@ const PUBLIC_AUDIENCE_OPTIONS = [
 ];
 
 const BRAND_MATURITY_OPTIONS = [
-  { id: "", label: "Unknown" },
+  { id: "", label: "Brand maturity / unknown" },
   { id: "new", label: "New / early-stage" },
   { id: "local", label: "Local / boutique" },
   { id: "growth", label: "Growing brand" },
@@ -709,7 +709,7 @@ const BRAND_MATURITY_OPTIONS = [
 ];
 
 const PRICE_POINT_OPTIONS = [
-  { id: "", label: "Unknown" },
+  { id: "", label: "Price point / unknown" },
   { id: "low", label: "Low-ticket / budget" },
   { id: "mid", label: "Mid-market" },
   { id: "premium", label: "Premium" },
