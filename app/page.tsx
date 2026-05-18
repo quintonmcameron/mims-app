@@ -751,6 +751,7 @@ function RoleSearchInput({
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const displayValue = open ? query : query || value;
 
   const filtered = query.trim()
     ? NOVA_ROLES.filter((r) => r.toLowerCase().includes(query.toLowerCase())).slice(0, 12)
@@ -774,33 +775,6 @@ function RoleSearchInput({
 
   return (
     <div ref={wrapperRef}>
-      {value && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: 10, marginBottom: 10,
-          padding: "12px 14px",
-          background: "rgba(232,197,122,0.06)",
-          border: "1px solid rgba(232,197,122,0.3)",
-          borderRadius: 12,
-        }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, color: "var(--gold)", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 2 }}>
-              Your position
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}>{value}</div>
-          </div>
-          <button
-            type="button"
-            aria-label="Clear selection"
-            onClick={() => { onChange(""); setQuery(""); inputRef.current?.focus(); }}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-3)", padding: 4 }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      )}
-
       <div style={{ position: "relative" }}>
         <svg
           width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
@@ -813,14 +787,14 @@ function RoleSearchInput({
           ref={inputRef}
           type="text"
           placeholder={value ? "Search to change position…" : "Search 200+ positions… e.g. Director of Photography"}
-          value={query}
+          value={displayValue}
           autoComplete="off"
           onFocus={() => setOpen(true)}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
           style={{
             width: "100%",
             background: "var(--surface)",
-            border: `1px solid ${open ? "var(--gold)" : "var(--border)"}`,
+            border: `1px solid ${open ? "var(--gold)" : value ? "rgba(232,197,122,0.3)" : "var(--border)"}`,
             borderRadius: open ? "12px 12px 0 0" : "12px",
             padding: "14px 14px 14px 42px",
             color: "var(--text)", fontSize: 15, fontFamily: "inherit",
@@ -894,6 +868,7 @@ function ProjectSearchInput({
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const displayValue = open ? query : query || value;
 
   const filtered = query.trim()
     ? PROJECT_VERTICALS.filter((v) => v.toLowerCase().includes(query.toLowerCase()))
@@ -917,32 +892,6 @@ function ProjectSearchInput({
 
   return (
     <div ref={wrapperRef}>
-      {value && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: 10, marginBottom: 10,
-          padding: "12px 14px",
-          background: "rgba(232,197,122,0.06)",
-          border: "1px solid rgba(232,197,122,0.3)",
-          borderRadius: 12,
-        }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, color: "var(--gold)", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 2 }}>
-              Project type
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}>{value}</div>
-          </div>
-          <button
-            type="button"
-            aria-label="Clear selection"
-            onClick={() => { onChange(""); setQuery(""); inputRef.current?.focus(); }}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-3)", padding: 4 }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      )}
       <div style={{ position: "relative" }}>
         <svg
           width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
@@ -955,14 +904,14 @@ function ProjectSearchInput({
           ref={inputRef}
           type="text"
           placeholder={value ? "Search to change project type…" : "Search 48 project types… e.g. Music Video"}
-          value={query}
+          value={displayValue}
           autoComplete="off"
           onFocus={() => setOpen(true)}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
           style={{
             width: "100%",
             background: "var(--surface)",
-            border: `1px solid ${open ? "var(--gold)" : "var(--border)"}`,
+            border: `1px solid ${open ? "var(--gold)" : value ? "rgba(232,197,122,0.3)" : "var(--border)"}`,
             borderRadius: open ? "12px 12px 0 0" : "12px",
             padding: "14px 14px 14px 42px",
             color: "var(--text)", fontSize: 15, fontFamily: "inherit",
@@ -2246,10 +2195,13 @@ function ExtraScreens({
                 <p className="helper">Select a concurrent role for this project to calculate your multi-seat operational upcharge premium.</p>
               </div>
 
-              <ProjectSearchInput
-                value={deal.project}
-                onChange={(v) => setDeal((d) => ({ ...d, project: v }))}
-              />
+              <div className="field">
+                <label>Project Type</label>
+                <ProjectSearchInput
+                  value={deal.project}
+                  onChange={(v) => setDeal((d) => ({ ...d, project: v }))}
+                />
+              </div>
 
               <div className="field">
                 <label>Additional scope notes</label>
