@@ -704,18 +704,19 @@ const SCOPE_SERVICE_OPTIONS: { id: string; label: string; mult: number }[] = [
 ];
 
 const ADDITIONAL_CREW_OPTIONS: { id: string; label: string; dayRate: number; phase: "shoot" | "post" | "project" }[] = [
-  { id: "producer", label: "Producer", dayRate: 800, phase: "project" },
-  { id: "1st-ad", label: "1st AD", dayRate: 650, phase: "shoot" },
+  { id: "director", label: "Director", dayRate: 1200, phase: "shoot" },
+  { id: "producer", label: "Producer", dayRate: 1250, phase: "project" },
+  { id: "1st-ad", label: "1st AD", dayRate: 900, phase: "shoot" },
   { id: "dp", label: "Director of Photography", dayRate: 900, phase: "shoot" },
-  { id: "camera-op", label: "Camera Operator", dayRate: 650, phase: "shoot" },
-  { id: "1st-ac", label: "1st AC", dayRate: 500, phase: "shoot" },
+  { id: "camera-op", label: "Camera Operator", dayRate: 700, phase: "shoot" },
+  { id: "1st-ac", label: "1st AC", dayRate: 650, phase: "shoot" },
   { id: "gaffer", label: "Gaffer", dayRate: 650, phase: "shoot" },
-  { id: "key-grip", label: "Key Grip", dayRate: 550, phase: "shoot" },
+  { id: "key-grip", label: "Key Grip", dayRate: 650, phase: "shoot" },
   { id: "sound-mixer", label: "Sound Mixer", dayRate: 650, phase: "shoot" },
-  { id: "pa", label: "Production Assistant", dayRate: 250, phase: "shoot" },
-  { id: "editor", label: "Editor", dayRate: 650, phase: "post" },
+  { id: "pa", label: "Production Assistant", dayRate: 300, phase: "shoot" },
+  { id: "editor", label: "Editor", dayRate: 850, phase: "post" },
   { id: "colorist", label: "Colorist", dayRate: 700, phase: "post" },
-  { id: "hmu", label: "Hair & Makeup", dayRate: 650, phase: "shoot" },
+  { id: "hmu", label: "Hair & Makeup", dayRate: 800, phase: "shoot" },
   { id: "stylist", label: "Stylist", dayRate: 700, phase: "shoot" },
 ];
 
