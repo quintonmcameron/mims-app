@@ -3619,8 +3619,8 @@ export default function Page() {
   );
 
   useEffect(() => {
-    const fadeTimer = setTimeout(() => setSplashFading(true), 1400);
-    const hideTimer = setTimeout(() => setShowSplash(false), 2000);
+    const fadeTimer = setTimeout(() => setSplashFading(true), 2200);
+    const hideTimer = setTimeout(() => setShowSplash(false), 3200);
     return () => {
       clearTimeout(fadeTimer);
       clearTimeout(hideTimer);
@@ -3648,7 +3648,7 @@ export default function Page() {
               background:
                 "radial-gradient(420px 240px at 50% 35%, rgba(232,197,122,0.12), transparent 70%), radial-gradient(420px 240px at 50% 55%, rgba(255,122,102,0.1), transparent 70%), var(--bg)",
               opacity: splashFading ? 0 : 1,
-              transition: "opacity 0.6s ease",
+              transition: "opacity 1s ease",
               pointerEvents: "none",
             }}
           >
@@ -3667,7 +3667,7 @@ export default function Page() {
                 letterSpacing: "-0.06em",
                 boxShadow: "0 30px 70px rgba(255,122,102,0.28), 0 12px 36px rgba(232,197,122,0.2)",
                 transform: splashFading ? "scale(0.96)" : "scale(1)",
-                transition: "transform 0.6s ease",
+                transition: "transform 1s ease",
               }}
             >
               M
@@ -3675,6 +3675,17 @@ export default function Page() {
             <div
               style={{
                 marginTop: 22,
+                fontSize: 16,
+                fontWeight: 900,
+                letterSpacing: "0.16em",
+                color: "var(--gold)",
+              }}
+            >
+              MIMS
+            </div>
+            <div
+              style={{
+                marginTop: 8,
                 fontSize: 22,
                 fontWeight: 800,
                 letterSpacing: "-0.03em",
