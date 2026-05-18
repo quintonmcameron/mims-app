@@ -55,6 +55,9 @@ interface Profile {
 interface Deal {
   client: string;
   url: string;
+  publicAudience: string;
+  brandMaturity: string;
+  pricePoint: string;
   source: string;
   project: string;
   shootDays: number;
@@ -159,6 +162,9 @@ const defaultProfile: Profile = {
 const defaultDeal: Deal = {
   client: "",
   url: "",
+  publicAudience: "",
+  brandMaturity: "",
+  pricePoint: "",
   source: "referral",
   project: "brand-video",
   shootDays: 0,
@@ -231,6 +237,38 @@ function getLocationMarketMultiplier(location: string): number {
   ) return 1.08;
 
   return 1;
+}
+
+function getPublicFootprintMultiplier(deal: Deal): number {
+  const audienceMult: Record<string, number> = {
+    "under-5k": 0.95,
+    "5k-25k": 1.0,
+    "25k-100k": 1.08,
+    "100k-500k": 1.16,
+    "500k-1m": 1.25,
+    "1m-plus": 1.35,
+  };
+  const maturityMult: Record<string, number> = {
+    new: 0.95,
+    local: 1.0,
+    growth: 1.1,
+    established: 1.2,
+    enterprise: 1.35,
+  };
+  const priceMult: Record<string, number> = {
+    low: 0.95,
+    mid: 1.0,
+    premium: 1.12,
+    luxury: 1.25,
+    b2b: 1.22,
+  };
+
+  const combined =
+    (audienceMult[deal.publicAudience] ?? 1) *
+    (maturityMult[deal.brandMaturity] ?? 1) *
+    (priceMult[deal.pricePoint] ?? 1);
+
+  return Math.max(0.9, Math.min(1.45, combined));
 }
 
 function computeRecommendation(
@@ -317,6 +355,7 @@ function computeRecommendation(
     solo: 0.85, small: 1.0, midmarket: 1.2, enterprise: 1.55,
   };
   const corpMult = CORP_MULT[deal.companySize] || 1.0;
+  const publicFootprintMult = getPublicFootprintMultiplier(deal);
 
   // Strategic intent multiplier — exponential weighting for high-conversion objectives
   const INTENT_MULT: Record<string, number> = {
@@ -326,7 +365,7 @@ function computeRecommendation(
   const stratMult = INTENT_MULT[deal.why] || 1.0;
 
   // Composite rate multiplier: outcome value × corporate scale × intent urgency
-  const compositeMult = valueMult * corpMult * stratMult;
+  const compositeMult = valueMult * corpMult * stratMult * publicFootprintMult;
   const valuePremium = compositeMult > 1.0;
 
   // Kit fee: hardware asset rental — not subject to composite multiplier
@@ -435,6 +474,9 @@ function computeRecommendation(
   if (deal.companySize === "enterprise") score += 2;
   else if (deal.companySize === "midmarket") score += 1;
   else if (deal.companySize === "solo") score -= 1;
+  if (["100k-500k", "500k-1m", "1m-plus"].includes(deal.publicAudience)) score += 1;
+  if (["established", "enterprise"].includes(deal.brandMaturity)) score += 1;
+  if (["premium", "luxury", "b2b"].includes(deal.pricePoint)) score += 1;
 
   score = Math.max(1, Math.min(10, score));
 
@@ -645,6 +687,34 @@ const ANNUAL_REVENUE_OPTIONS = [
   { id: "2m-10m", label: "$2M – $10M" },
   { id: "10m-50m", label: "$10M – $50M" },
   { id: "50m-plus", label: "$50M+" },
+];
+
+const PUBLIC_AUDIENCE_OPTIONS = [
+  { id: "", label: "Unknown / not entered" },
+  { id: "under-5k", label: "Under 5K" },
+  { id: "5k-25k", label: "5K – 25K" },
+  { id: "25k-100k", label: "25K – 100K" },
+  { id: "100k-500k", label: "100K – 500K" },
+  { id: "500k-1m", label: "500K – 1M" },
+  { id: "1m-plus", label: "1M+" },
+];
+
+const BRAND_MATURITY_OPTIONS = [
+  { id: "", label: "Unknown" },
+  { id: "new", label: "New / early-stage" },
+  { id: "local", label: "Local / boutique" },
+  { id: "growth", label: "Growing brand" },
+  { id: "established", label: "Established brand" },
+  { id: "enterprise", label: "Enterprise / national" },
+];
+
+const PRICE_POINT_OPTIONS = [
+  { id: "", label: "Unknown" },
+  { id: "low", label: "Low-ticket / budget" },
+  { id: "mid", label: "Mid-market" },
+  { id: "premium", label: "Premium" },
+  { id: "luxury", label: "Luxury / high-ticket" },
+  { id: "b2b", label: "B2B / contract value" },
 ];
 
 const INTENT_OPTIONS = [
@@ -2351,12 +2421,45 @@ function ExtraScreens({
                 />
               </div>
               <div className="field">
-                <label>Website (optional)</label>
+                <label>Website or social link (optional)</label>
                 <input
                   type="url"
+                  placeholder="Website, Instagram, TikTok, YouTube, LinkedIn…"
                   value={deal.url}
                   onChange={(e) => setDeal((d) => ({ ...d, url: e.target.value }))}
                 />
+              </div>
+              <div className="field">
+                <label>Public footprint signals</label>
+                <p className="helper">
+                  Audience and social presence are directional signals only, not verified budget facts. Use them alongside the client&apos;s business model, scope, and actual budget conversation.
+                </p>
+                <div style={{ display: "grid", gap: 10 }}>
+                  <select
+                    value={deal.publicAudience}
+                    onChange={(e) => setDeal((d) => ({ ...d, publicAudience: e.target.value }))}
+                  >
+                    {PUBLIC_AUDIENCE_OPTIONS.map((opt) => (
+                      <option key={opt.id || "unknown-audience"} value={opt.id}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={deal.brandMaturity}
+                    onChange={(e) => setDeal((d) => ({ ...d, brandMaturity: e.target.value }))}
+                  >
+                    {BRAND_MATURITY_OPTIONS.map((opt) => (
+                      <option key={opt.id || "unknown-maturity"} value={opt.id}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={deal.pricePoint}
+                    onChange={(e) => setDeal((d) => ({ ...d, pricePoint: e.target.value }))}
+                  >
+                    {PRICE_POINT_OPTIONS.map((opt) => (
+                      <option key={opt.id || "unknown-price"} value={opt.id}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="field">
                 <label>How did they find you?</label>
