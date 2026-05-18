@@ -2009,7 +2009,11 @@ const LEADERSHIP_KEYWORDS = [
   "department head", "team lead", "principal", "owner",
 ];
 
-function parseResumeForLeverage(text: string): {
+function analyzeProfessionalHighlights(input: {
+  recognizableWork: string;
+  leadershipWork: string;
+  careerHighlights: string;
+}): {
   score: number;
   detectedExpTier: string | null;
   detectedSkillTier: string | null;
@@ -2018,6 +2022,7 @@ function parseResumeForLeverage(text: string): {
   leadershipSignals: string[];
   yearsFound: number;
 } {
+  const text = `${input.recognizableWork} ${input.leadershipWork} ${input.careerHighlights}`;
   const lower = text.toLowerCase();
 
   const yearPatterns = [
@@ -2080,7 +2085,7 @@ function buildPresetObjections(profile: Profile, leverageScore: number | null): 
     ...(profile.resumeLeadershipSignals ?? []).slice(0, 2),
   ];
   const resumeLine = resumeProof.length > 0
-    ? `Your resume supports this position with ${resumeProof.join(" / ")} signal${resumeProof.length !== 1 ? "s" : ""}; use that proof when explaining why the project needs senior-level execution.`
+    ? `Your professional highlights support this position with ${resumeProof.join(" / ")} signal${resumeProof.length !== 1 ? "s" : ""}; use that proof when explaining why the project needs senior-level execution.`
     : null;
 
   return [
@@ -2148,7 +2153,7 @@ function generateCustomCounter(input: string, profile: Profile, leverageScore: n
     ...(profile.resumeLeadershipSignals ?? []).slice(0, 2),
   ];
   const resumeLine = resumeProof.length > 0
-    ? `Your resume gives you proof points to use here: ${resumeProof.join(" / ")}. Tie those examples to reduced risk, better execution, and fewer client-side corrections.`
+    ? `Your professional highlights give you proof points to use here: ${resumeProof.join(" / ")}. Tie those examples to reduced risk, better execution, and fewer client-side corrections.`
     : null;
 
   if (r.includes("too high") || r.includes("expensive") || r.includes("cheaper") || r.includes("discount") || r.includes("lower") || r.includes("budget") || r.includes("afford")) {
@@ -3219,10 +3224,10 @@ function ExtraScreens({
 
                   {((profile.resumeClientSignals?.length ?? 0) > 0 || (profile.resumeLeadershipSignals?.length ?? 0) > 0) && (
                     <div className="tactic" style={{ marginTop: 12 }}>
-                      <div className="source">Resume Proof Points</div>
+                      <div className="source">Professional Highlights</div>
                       <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Credibility Signal</div>
                       <p style={{ margin: 0, fontSize: 14, color: "var(--text-2)", lineHeight: 1.7 }}>
-                        Your uploaded resume supports a stronger ask with{" "}
+                        Your professional highlights support a stronger ask with{" "}
                         {[...(profile.resumeClientSignals ?? []).slice(0, 2), ...(profile.resumeLeadershipSignals ?? []).slice(0, 2)].join(", ")}.
                         Use those examples to show the client they are hiring proven judgment, not just execution time.
                       </p>
@@ -3468,10 +3473,13 @@ export default function Page() {
   const [setupLocation, setSetupLocation] = useState("");
   const [setupGear, setSetupGear] = useState<GearItem[]>([]);
   const [setupAgreed, setSetupAgreed] = useState(false);
-  const [resumeFileName, setResumeFileName] = useState<string | null>(null);
   const [leverageScore, setLeverageScore] = useState<number | null>(null);
-  const [resumeDragActive, setResumeDragActive] = useState(false);
-  const [resumeParseResult, setResumeParseResult] = useState<ReturnType<typeof parseResumeForLeverage> | null>(null);
+  const [professionalHighlights, setProfessionalHighlights] = useState({
+    recognizableWork: "",
+    leadershipWork: "",
+    careerHighlights: "",
+  });
+  const [highlightsResult, setHighlightsResult] = useState<ReturnType<typeof analyzeProfessionalHighlights> | null>(null);
   const totalLockerReplacementValue = profile.gearLocker.reduce(
     (sum, item) => sum + (parseFloat(item.cost.replace(/,/g, "")) || 0), 0
   );
@@ -3527,23 +3535,33 @@ export default function Page() {
   const setupBack = () => setSetupStep((s) => Math.max(1, s - 1));
 
   const finishSetup = () => {
+    const parsedHighlights = analyzeProfessionalHighlights(professionalHighlights);
+    const hasHighlights = [
+      professionalHighlights.recognizableWork,
+      professionalHighlights.leadershipWork,
+      professionalHighlights.careerHighlights,
+    ].some((value) => value.trim().length > 0);
+    if (hasHighlights) {
+      setHighlightsResult(parsedHighlights);
+      setLeverageScore(parsedHighlights.score);
+    }
     setProfile((p) => ({
       ...p,
       name: setupName.trim() || "Freelancer",
       email: setupEmail.trim(),
       gearLocker: setupGear.filter((g) => g.name.trim()),
-      ...(resumeParseResult?.detectedExpTier ? { experience: resumeParseResult.detectedExpTier } : {}),
-      ...(resumeParseResult?.detectedSkillTier ? { skill: resumeParseResult.detectedSkillTier } : {}),
-      ...(resumeParseResult ? {
-        resumeLeverageScore: resumeParseResult.score,
-        resumeClientSignals: resumeParseResult.clientSignals,
-        resumeLeadershipSignals: resumeParseResult.leadershipSignals,
-        resumeMatchedKeywords: resumeParseResult.matchedKeywords,
+      ...(parsedHighlights.detectedExpTier ? { experience: parsedHighlights.detectedExpTier } : {}),
+      ...(parsedHighlights.detectedSkillTier ? { skill: parsedHighlights.detectedSkillTier } : {}),
+      ...(hasHighlights ? {
+        resumeLeverageScore: parsedHighlights.score,
+        resumeClientSignals: parsedHighlights.clientSignals,
+        resumeLeadershipSignals: parsedHighlights.leadershipSignals,
+        resumeMatchedKeywords: parsedHighlights.matchedKeywords,
       } : {}),
     }));
     if (typeof window !== "undefined") localStorage.setItem("mimsOnboardingDone", "1");
     go("home");
-    showToast(resumeParseResult ? `Profile saved · Leverage Score ${leverageScore}/10 applied` : "Profile saved · your fair rate is ready");
+    showToast(hasHighlights ? `Profile saved · Leverage Score ${parsedHighlights.score}/10 applied` : "Profile saved · your fair rate is ready");
   };
 
   const startNewDeal = () => {
@@ -3902,144 +3920,47 @@ export default function Page() {
                     onChange={(e) => setSetupEmail(e.target.value)}
                   />
                 </div>
-                {/* Resume drop zone */}
                 <div style={{ marginTop: 14 }}>
-                  <div className="eyebrow" style={{ marginBottom: 8 }}>Import Professional History</div>
-                  <div
-                    onDragOver={(e) => { e.preventDefault(); setResumeDragActive(true); }}
-                    onDragLeave={() => setResumeDragActive(false)}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setResumeDragActive(false);
-                      const file = e.dataTransfer.files[0];
-                      if (!file) return;
-                      setResumeFileName(file.name);
-                      const reader = new FileReader();
-                      reader.onload = (ev) => {
-                        const text = (ev.target?.result as string) || "";
-                        const parsed = parseResumeForLeverage(text);
-                        setResumeParseResult(parsed);
-                        setLeverageScore(parsed.score);
-                        setProfile((p) => ({
-                          ...p,
-                          ...(parsed.detectedExpTier ? { experience: parsed.detectedExpTier } : {}),
-                          ...(parsed.detectedSkillTier ? { skill: parsed.detectedSkillTier } : {}),
-                          resumeLeverageScore: parsed.score,
-                          resumeClientSignals: parsed.clientSignals,
-                          resumeLeadershipSignals: parsed.leadershipSignals,
-                          resumeMatchedKeywords: parsed.matchedKeywords,
-                        }));
-                      };
-                      reader.readAsText(file);
-                    }}
-                    style={{
-                      border: `2px dashed ${resumeDragActive ? "var(--success)" : resumeFileName ? "var(--gold)" : "var(--border-2)"}`,
-                      borderRadius: 16,
-                      padding: "24px 20px",
-                      textAlign: "center",
-                      background: resumeDragActive
-                        ? "rgba(94,226,160,0.05)"
-                        : resumeFileName
-                          ? "rgba(232,197,122,0.04)"
-                          : "var(--surface)",
-                      transition: "all 0.2s ease",
-                      cursor: "pointer",
-                    }}
-                    onClick={() => {
-                      const inp = document.createElement("input");
-                      inp.type = "file";
-                      inp.accept = ".pdf,.txt,.doc,.docx";
-                      inp.onchange = () => {
-                        const file = inp.files?.[0];
-                        if (!file) return;
-                        setResumeFileName(file.name);
-                        const reader = new FileReader();
-                        reader.onload = (ev) => {
-                          const text = (ev.target?.result as string) || "";
-                          const parsed = parseResumeForLeverage(text);
-                          setResumeParseResult(parsed);
-                          setLeverageScore(parsed.score);
-                          setProfile((p) => ({
-                            ...p,
-                            ...(parsed.detectedExpTier ? { experience: parsed.detectedExpTier } : {}),
-                            ...(parsed.detectedSkillTier ? { skill: parsed.detectedSkillTier } : {}),
-                            resumeLeverageScore: parsed.score,
-                            resumeClientSignals: parsed.clientSignals,
-                            resumeLeadershipSignals: parsed.leadershipSignals,
-                            resumeMatchedKeywords: parsed.matchedKeywords,
-                          }));
-                        };
-                        reader.readAsText(file);
-                      };
-                      inp.click();
-                    }}
-                  >
-                    {resumeFileName ? (
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(232,197,122,0.12)", border: "1px solid rgba(232,197,122,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth={2}>
-                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
-                          </svg>
-                        </div>
-                        <div style={{ textAlign: "left" }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--gold)" }}>{resumeFileName}</div>
-                          <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 1 }}>Click to replace</div>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--grad-soft)", border: "1px solid rgba(232,197,122,0.2)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth={2}>
-                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
-                          </svg>
-                        </div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 4 }}>Drop your résumé here or tap to browse</div>
-                        <div style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5 }}>Upload your resume to auto-calibrate your market leverage matrix.</div>
-                        <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 6 }}>Text-readable PDF · TXT · DOC — optional, skippable</div>
-                      </>
-                    )}
+                  <div className="eyebrow" style={{ marginBottom: 8 }}>Professional Highlights</div>
+                  <p className="muted small" style={{ margin: "0 0 12px" }}>
+                    These answers help MIMS understand what supports a stronger rate.
+                  </p>
+                  <div className="field">
+                    <label>Have you worked with recognizable brands, agencies, studios, or public figures?</label>
+                    <textarea
+                      value={professionalHighlights.recognizableWork}
+                      onChange={(e) => setProfessionalHighlights((h) => ({ ...h, recognizableWork: e.target.value }))}
+                      placeholder="Example: Nike campaign, major label artist, agency production, local public figure..."
+                    />
                   </div>
-
-                  {/* Leverage score result card */}
-                  {leverageScore !== null && resumeParseResult && (
+                  <div className="field">
+                    <label>Have you led teams, departments, crews, or client-facing creative decisions?</label>
+                    <textarea
+                      value={professionalHighlights.leadershipWork}
+                      onChange={(e) => setProfessionalHighlights((h) => ({ ...h, leadershipWork: e.target.value }))}
+                      placeholder="Example: led a 5-person crew, directed client creative, managed post workflow..."
+                    />
+                  </div>
+                  <div className="field">
+                    <label>What are 2–3 career highlights that make your rate stronger?</label>
+                    <textarea
+                      value={professionalHighlights.careerHighlights}
+                      onChange={(e) => setProfessionalHighlights((h) => ({ ...h, careerHighlights: e.target.value }))}
+                      placeholder="Add awards, notable projects, years of experience, outcomes, press, or high-trust work..."
+                    />
+                  </div>
+                  {highlightsResult && leverageScore !== null && (
                     <div style={{
-                      marginTop: 12,
                       padding: "14px 16px",
                       background: "rgba(232,197,122,0.06)",
                       border: "1px solid rgba(232,197,122,0.25)",
                       borderRadius: 14,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 14,
                     }}>
-                      {/* Score badge */}
-                      <div style={{
-                        width: 52, height: 52, borderRadius: 14, flexShrink: 0,
-                        background: "var(--grad)", display: "flex", flexDirection: "column",
-                        alignItems: "center", justifyContent: "center",
-                      }}>
-                        <span style={{ fontSize: 22, fontWeight: 800, color: "#1a1306", lineHeight: 1 }}>{leverageScore}</span>
-                        <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(26,19,6,0.7)", letterSpacing: "0.06em" }}>/10</span>
+                      <div style={{ fontSize: 11, color: "var(--gold)", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 3 }}>
+                        Leverage Score Applied
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 11, color: "var(--gold)", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 3 }}>
-                          Leverage Score Detected
-                        </div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 3 }}>
-                          {leverageScore >= 8 ? "Lead / Executive Seniority" : leverageScore >= 6 ? "Senior Market Position" : leverageScore >= 4 ? "Mid-Level Positioning" : "Emerging Professional"}
-                        </div>
-                        {resumeParseResult.yearsFound > 0 && (
-                          <div style={{ fontSize: 11, color: "var(--text-3)" }}>
-                            {resumeParseResult.yearsFound}+ yrs detected
-                            {resumeParseResult.matchedKeywords.length > 0 && ` · ${resumeParseResult.matchedKeywords.length} enterprise signal${resumeParseResult.matchedKeywords.length !== 1 ? "s" : ""}`}
-                            {resumeParseResult.leadershipSignals.length > 0 && ` · ${resumeParseResult.leadershipSignals.length} leadership signal${resumeParseResult.leadershipSignals.length !== 1 ? "s" : ""}`}
-                          </div>
-                        )}
-                        {resumeParseResult.detectedExpTier && (
-                          <div style={{ fontSize: 11, color: "var(--success)", marginTop: 2 }}>
-                            Experience tier auto-calibrated → {resumeParseResult.detectedExpTier === "10+" ? "10+ years" : resumeParseResult.detectedExpTier}
-                          </div>
-                        )}
+                      <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.6 }}>
+                        MIMS will use these highlights as rate confidence and negotiation support.
                       </div>
                     </div>
                   )}
