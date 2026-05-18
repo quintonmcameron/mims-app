@@ -3675,17 +3675,6 @@ export default function Page() {
             <div
               style={{
                 marginTop: 22,
-                fontSize: 16,
-                fontWeight: 900,
-                letterSpacing: "0.16em",
-                color: "var(--gold)",
-              }}
-            >
-              MIMS
-            </div>
-            <div
-              style={{
-                marginTop: 8,
                 fontSize: 22,
                 fontWeight: 700,
                 letterSpacing: "0.18em",
