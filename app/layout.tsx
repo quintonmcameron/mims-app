@@ -14,9 +14,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  applicationName: "MIMS",
   title: "MIMS — Your negotiation co-pilot",
   description: "Your AI co-pilot for freelance negotiations.",
-  appleWebApp: { capable: true },
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/mims-icon.svg",
+    apple: "/mims-icon.svg",
+  },
+  appleWebApp: { capable: true, title: "MIMS", statusBarStyle: "black-translucent" },
 };
 
 export const viewport = {

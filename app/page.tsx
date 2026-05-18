@@ -315,10 +315,12 @@ function computeRecommendation(
 
   const adjDay = base * skillMult * extrasMult * resumeMult * locationMult * (1 + premiumLoading);
 
-  // Multi-role: videographer pricing both shoot and edit at the full day rate (two seats)
+  // Pure post/design roles should scale at the full day rate. For production-first roles,
+  // edit days remain discounted unless the same person is covering a true dual-role scope.
   const roleForCalc = (deal.dealRole || profile.trade).toLowerCase();
   const isMultiRole = roleForCalc.includes("videographer") && deal.shootDays > 0 && deal.editDays > 0;
-  const postDayRate = isMultiRole ? adjDay : adjDay * 0.75;
+  const roleDayMode = getRoleDayMode(deal.dealRole || profile.trade);
+  const postDayRate = isMultiRole || roleDayMode === "post" || roleDayMode === "design" ? adjDay : adjDay * 0.75;
 
   const shoot = deal.shootDays * adjDay;
   const edit = deal.editDays * postDayRate;
@@ -1057,14 +1059,20 @@ function SpinCounter({
   onChange,
   min = 0,
   max = 30,
+  step = 1,
 }: {
   label: string;
   value: number;
   onChange: (v: number) => void;
   min?: number;
   max?: number;
+  step?: number;
 }) {
-  const clamp = (n: number) => Math.max(min, Math.min(max, n));
+  const clamp = (n: number) => {
+    const clamped = Math.max(min, Math.min(max, n));
+    return Math.round(clamped / step) * step;
+  };
+  const displayValue = Number.isInteger(value) ? value.toString() : value.toFixed(1);
   return (
     <div style={{ flex: 1 }}>
       <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-2)", marginBottom: 8 }}>
@@ -1078,11 +1086,11 @@ function SpinCounter({
           borderRadius: 12, height: 52,
           userSelect: "none", overflow: "hidden",
         }}
-        onWheel={(e) => { e.preventDefault(); onChange(clamp(value + (e.deltaY < 0 ? 1 : -1))); }}
+        onWheel={(e) => { e.preventDefault(); onChange(clamp(value + (e.deltaY < 0 ? step : -step))); }}
       >
         <button
           type="button"
-          onClick={() => onChange(clamp(value - 1))}
+          onClick={() => onChange(clamp(value - step))}
           disabled={value <= min}
           style={{
             width: 44, height: "100%", background: "transparent", border: "none",
@@ -1103,11 +1111,11 @@ function SpinCounter({
           color: value === 0 ? "var(--text-3)" : "var(--text)",
           transition: "color 0.12s ease",
         }}>
-          {value === 0 ? "" : value}
+          {value === 0 ? "" : displayValue}
         </div>
         <button
           type="button"
-          onClick={() => onChange(clamp(value + 1))}
+          onClick={() => onChange(clamp(value + step))}
           disabled={value >= max}
           style={{
             width: 44, height: "100%", background: "transparent", border: "none",
@@ -2545,11 +2553,13 @@ function ExtraScreens({
                       label="Production Days"
                       value={deal.shootDays}
                       onChange={(v) => setDeal((d) => ({ ...d, shootDays: v }))}
+                      step={0.5}
                     />
                     <SpinCounter
                       label="Edit Days"
                       value={deal.editDays}
                       onChange={(v) => setDeal((d) => ({ ...d, editDays: v }))}
+                      step={0.5}
                     />
                   </div>
                 )}
@@ -2558,6 +2568,7 @@ function ExtraScreens({
                     label="Production Days"
                     value={deal.shootDays}
                     onChange={(v) => setDeal((d) => ({ ...d, shootDays: v }))}
+                    step={0.5}
                   />
                 )}
                 {dayMode === "post" && (
@@ -2565,6 +2576,7 @@ function ExtraScreens({
                     label="Post-Production Days"
                     value={deal.editDays}
                     onChange={(v) => setDeal((d) => ({ ...d, editDays: v }))}
+                    step={0.5}
                   />
                 )}
                 {dayMode === "design" && (
@@ -2572,6 +2584,7 @@ function ExtraScreens({
                     label="Working Days"
                     value={deal.editDays}
                     onChange={(v) => setDeal((d) => ({ ...d, editDays: v }))}
+                    step={0.5}
                   />
                 )}
               </div>
