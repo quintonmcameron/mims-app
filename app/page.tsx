@@ -46,6 +46,10 @@ interface Profile {
   location: string;
   extras: string[];
   gearLocker: GearItem[];
+  resumeLeverageScore?: number;
+  resumeClientSignals?: string[];
+  resumeLeadershipSignals?: string[];
+  resumeMatchedKeywords?: string[];
 }
 
 interface Deal {
@@ -204,6 +208,31 @@ function fmt(n: number): string {
   return n.toLocaleString("en-US");
 }
 
+function getLocationMarketMultiplier(location: string): number {
+  const loc = location.toLowerCase();
+  if (!loc || loc.includes("remote")) return 1;
+
+  if (
+    ["new york", "nyc", "brooklyn", "los angeles", "la,", "san francisco", "bay area"].some((city) =>
+      loc.includes(city)
+    )
+  ) return 1.25;
+
+  if (
+    ["chicago", "miami", "boston", "washington", "dc", "seattle", "oakland", "santa monica"].some((city) =>
+      loc.includes(city)
+    )
+  ) return 1.15;
+
+  if (
+    ["atlanta", "austin", "denver", "philadelphia", "portland", "san diego", "nashville", "new orleans"].some((city) =>
+      loc.includes(city)
+    )
+  ) return 1.08;
+
+  return 1;
+}
+
 function computeRecommendation(
   profile: Profile,
   deal: Deal,
@@ -229,13 +258,24 @@ function computeRecommendation(
       profile.skill || "senior"
     ] || 1.0;
   const extrasMult = 1 + Math.min(profile.extras.length, 4) * 0.04;
+  const resumeScore = profile.resumeLeverageScore ?? 0;
+  const resumeClientCount = profile.resumeClientSignals?.length ?? 0;
+  const resumeLeadershipCount = profile.resumeLeadershipSignals?.length ?? 0;
+  const resumePremium = Math.min(
+    (resumeScore >= 8 ? 0.08 : resumeScore >= 6 ? 0.05 : resumeScore >= 4 ? 0.025 : 0) +
+      Math.min(resumeClientCount, 4) * 0.015 +
+      Math.min(resumeLeadershipCount, 4) * 0.02,
+    0.2,
+  );
+  const resumeMult = 1 + resumePremium;
+  const locationMult = getLocationMarketMultiplier(profile.location);
 
   // Premium loading fee baked into the day rate: rush=25%, fire=50%, paid=25%, broadcast=50%, caps at 50%
   const rushPremium = ({ loose: 0, normal: 0, rush: 0.25, fire: 0.5 } as Record<string, number>)[deal.rush] || 0;
   const usagePremium = ({ organic: 0, paid: 0.25, broadcast: 0.5 } as Record<string, number>)[deal.usage] || 0;
   const premiumLoading = Math.min(rushPremium + usagePremium, 0.5);
 
-  const adjDay = base * skillMult * extrasMult * (1 + premiumLoading);
+  const adjDay = base * skillMult * extrasMult * resumeMult * locationMult * (1 + premiumLoading);
 
   // Multi-role: videographer pricing both shoot and edit at the full day rate (two seats)
   const roleForCalc = (deal.dealRole || profile.trade).toLowerCase();
@@ -1819,11 +1859,19 @@ const HIGH_VALUE_KEYWORDS = [
   "iatse", "dga", "sag", "union", "enterprise", "agency",
 ];
 
+const LEADERSHIP_KEYWORDS = [
+  "director", "creative director", "lead", "senior", "head of", "founder",
+  "executive producer", "producer", "showrunner", "supervisor", "manager",
+  "department head", "team lead", "principal", "owner",
+];
+
 function parseResumeForLeverage(text: string): {
   score: number;
   detectedExpTier: string | null;
   detectedSkillTier: string | null;
   matchedKeywords: string[];
+  clientSignals: string[];
+  leadershipSignals: string[];
   yearsFound: number;
 } {
   const lower = text.toLowerCase();
@@ -1856,15 +1904,23 @@ function parseResumeForLeverage(text: string): {
   for (const kw of HIGH_VALUE_KEYWORDS) {
     if (lower.includes(kw)) matchedKeywords.push(kw);
   }
+  const leadershipSignals: string[] = [];
+  for (const kw of LEADERSHIP_KEYWORDS) {
+    if (lower.includes(kw)) leadershipSignals.push(kw);
+  }
+  const clientSignals = matchedKeywords.filter((kw) =>
+    !["multi-camera", "director of photography", "lead editor", "executive producer", "showrunner", "feature film", "major label", "platinum", "iatse", "dga", "sag", "union", "enterprise", "agency", "national commercial", "broadcast"].includes(kw)
+  );
 
   let score = 3;
   if (maxYears >= 10) score += 3;
   else if (maxYears >= 5) score += 2;
   else if (maxYears >= 3) score += 1;
   score += Math.min(matchedKeywords.length, 4);
+  score += Math.min(leadershipSignals.length, 2);
   score = Math.max(1, Math.min(10, score));
 
-  return { score, detectedExpTier, detectedSkillTier, matchedKeywords, yearsFound: maxYears };
+  return { score, detectedExpTier, detectedSkillTier, matchedKeywords, clientSignals, leadershipSignals, yearsFound: maxYears };
 }
 
 function buildPresetObjections(profile: Profile, leverageScore: number | null): ObjectionEntry[] {
@@ -1875,6 +1931,13 @@ function buildPresetObjections(profile: Profile, leverageScore: number | null): 
   const lv = leverageScore ?? 5;
   const tierLabel = lv >= 8 ? "Lead / Executive" : lv >= 6 ? "Senior" : lv >= 4 ? "Mid-level" : "Emerging";
   const extras = profile.extras.length > 0 ? ` and ${profile.extras.slice(0, 2).join(" / ")} capabilities` : "";
+  const resumeProof = [
+    ...(profile.resumeClientSignals ?? []).slice(0, 2),
+    ...(profile.resumeLeadershipSignals ?? []).slice(0, 2),
+  ];
+  const resumeLine = resumeProof.length > 0
+    ? `Your resume supports this position with ${resumeProof.join(" / ")} signal${resumeProof.length !== 1 ? "s" : ""}; use that proof when explaining why the project needs senior-level execution.`
+    : null;
 
   return [
     {
@@ -1882,6 +1945,7 @@ function buildPresetObjections(profile: Profile, leverageScore: number | null): 
       label: "Your rate looks too high — can we do a flat package?",
       script: [
         `Given my ${years} of ${skillAdj} ${trade} experience${extras}, this estimate reflects the quality level, timeline pressure, and delivery responsibility attached to this project.`,
+        ...(resumeLine ? [resumeLine] : []),
         `If the total feels heavy, move the conversation into scope design. Identify the result they need most, then separate must-have deliverables from items that can wait.`,
         `A cleaner option is to reduce or phase deliverables while keeping the professional rate intact. That protects the work standard and still gives the client a path forward.`,
         `Present a smaller version of the same project, priced with the same rate logic, so the adjustment is about project size rather than the value of your labor.`,
@@ -1935,6 +1999,13 @@ function generateCustomCounter(input: string, profile: Profile, leverageScore: n
   const lv = leverageScore ?? 5;
   const tierLabel = lv >= 8 ? "Lead / Executive" : lv >= 6 ? "Senior" : lv >= 4 ? "Mid-level" : "Emerging";
   const extras = profile.extras.length > 0 ? `, with specialized capabilities in ${profile.extras.slice(0, 2).join(" and ")}` : "";
+  const resumeProof = [
+    ...(profile.resumeClientSignals ?? []).slice(0, 2),
+    ...(profile.resumeLeadershipSignals ?? []).slice(0, 2),
+  ];
+  const resumeLine = resumeProof.length > 0
+    ? `Your resume gives you proof points to use here: ${resumeProof.join(" / ")}. Tie those examples to reduced risk, better execution, and fewer client-side corrections.`
+    : null;
 
   if (r.includes("too high") || r.includes("expensive") || r.includes("cheaper") || r.includes("discount") || r.includes("lower") || r.includes("budget") || r.includes("afford")) {
     const breakEven = result?.breakEvenSales;
@@ -1946,6 +2017,7 @@ function generateCustomCounter(input: string, profile: Profile, leverageScore: n
       role: "coach",
       script: [
         roiLine,
+        ...(resumeLine ? [resumeLine] : []),
         `I understand budget alignment is a priority. Before we adjust anything, help me understand: what is the expected outcome from this project, and what would that result be worth to your business?`,
         `Rate hesitation often means the client needs more clarity on what the project is expected to accomplish. Confirm the business goal before changing the scope or cost.`,
         `Offer a scope reduction as the professional alternative to a rate cut. Remove or phase a deliverable before reducing the day rate.`,
@@ -1962,6 +2034,7 @@ function generateCustomCounter(input: string, profile: Profile, leverageScore: n
       role: "coach",
       script: [
         `As a ${tierLabel} ${trade} with ${years} of professional experience${extras}, possible future work should be handled as a separate ongoing agreement, not as a discount on today's project.`,
+        ...(resumeLine ? [resumeLine] : []),
         `I am excited about an ongoing collaboration. Let us put a monthly agreement in place with defined deliverables, timing, and payment terms.`,
         `Keep this project priced on its own merits. If they want volume pricing, ask for a clear commitment that both sides can plan around.`,
       ],
@@ -1976,6 +2049,7 @@ function generateCustomCounter(input: string, profile: Profile, leverageScore: n
     role: "coach",
     script: [
       `When a client raises a concern, slow the pace and clarify what is underneath it. As a ${tierLabel} ${trade} with ${years} of experience${extras}, your job is to connect the scope to the result they need.`,
+      ...(resumeLine ? [resumeLine] : []),
       `Help me understand what is driving that concern — is it about the total investment, the timeline, or what is included in the scope?`,
       `Strong client communication starts with listening. Ask a clear follow-up question before offering a revised number or revised scope.`,
       `Before making any adjustments, confirm what a successful result looks like and which part of the project is most important to protect.`,
@@ -2967,6 +3041,18 @@ function ExtraScreens({
                     </p>
                   </div>
 
+                  {((profile.resumeClientSignals?.length ?? 0) > 0 || (profile.resumeLeadershipSignals?.length ?? 0) > 0) && (
+                    <div className="tactic" style={{ marginTop: 12 }}>
+                      <div className="source">Resume Proof Points</div>
+                      <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Credibility Signal</div>
+                      <p style={{ margin: 0, fontSize: 14, color: "var(--text-2)", lineHeight: 1.7 }}>
+                        Your uploaded resume supports a stronger ask with{" "}
+                        {[...(profile.resumeClientSignals ?? []).slice(0, 2), ...(profile.resumeLeadershipSignals ?? []).slice(0, 2)].join(", ")}.
+                        Use those examples to show the client they are hiring proven judgment, not just execution time.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="tactic" style={{ marginTop: 12 }}>
                     <div className="source">02 · Connect the Fee to the Business Result</div>
                     <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Result Math</div>
@@ -3302,6 +3388,12 @@ export default function Page() {
       gearLocker: setupGear.filter((g) => g.name.trim()),
       ...(resumeParseResult?.detectedExpTier ? { experience: resumeParseResult.detectedExpTier } : {}),
       ...(resumeParseResult?.detectedSkillTier ? { skill: resumeParseResult.detectedSkillTier } : {}),
+      ...(resumeParseResult ? {
+        resumeLeverageScore: resumeParseResult.score,
+        resumeClientSignals: resumeParseResult.clientSignals,
+        resumeLeadershipSignals: resumeParseResult.leadershipSignals,
+        resumeMatchedKeywords: resumeParseResult.matchedKeywords,
+      } : {}),
     }));
     if (typeof window !== "undefined") localStorage.setItem("mimsOnboardingDone", "1");
     go("home");
@@ -3559,65 +3651,6 @@ export default function Page() {
                     setProfile((p) => ({ ...p, extras: v as string[] }))
                   }
                 />
-                <h3 style={{ marginTop: 22 }}>Union or non-union?</h3>
-                <p className="muted small" style={{ margin: "6px 0 12px" }}>
-                  Determines the rate structure and whether the 21.5% P&amp;H fringe loader applies.
-                </p>
-                <div className="seg">
-                  <button
-                    type="button"
-                    className={!isUnion ? "active" : ""}
-                    onClick={() => setIsUnion(false)}
-                  >
-                    Non-Union
-                  </button>
-                  <button
-                    type="button"
-                    className={isUnion ? "active" : ""}
-                    onClick={() => setIsUnion(true)}
-                  >
-                    Union Scale
-                  </button>
-                </div>
-                {!isUnion && (
-                  <div
-                    role="checkbox"
-                    aria-checked={matchUnionRates}
-                    tabIndex={0}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 12, marginTop: 10,
-                      padding: "12px 14px",
-                      background: matchUnionRates ? "rgba(94,226,160,0.05)" : "var(--surface)",
-                      border: `1px solid ${matchUnionRates ? "rgba(94,226,160,0.3)" : "var(--border)"}`,
-                      borderRadius: 12, cursor: "pointer",
-                      transition: "all 0.15s ease",
-                    }}
-                    onClick={() => setMatchUnionRates((v) => !v)}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setMatchUnionRates((v) => !v); } }}
-                  >
-                    <div style={{
-                      width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-                      border: matchUnionRates ? "none" : "1.5px solid var(--border-2)",
-                      background: matchUnionRates ? "var(--grad)" : "transparent",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      transition: "all 0.15s ease",
-                    }}>
-                      {matchUnionRates && (
-                        <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                          <path d="M2 6l3 3 5-5" stroke="#1a1306" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text)" }}>
-                        Match union rates per position
-                      </div>
-                      <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>
-                        Premium scale day rates — no P&amp;H fringe loader
-                      </div>
-                    </div>
-                  </div>
-                )}
                 <div className="divider" />
                 <div className="btn-row">
                   <button type="button" className="btn btn-ghost" onClick={setupBack}>
@@ -3672,13 +3705,15 @@ export default function Page() {
                         const parsed = parseResumeForLeverage(text);
                         setResumeParseResult(parsed);
                         setLeverageScore(parsed.score);
-                        if (parsed.detectedExpTier) {
-                          setProfile((p) => ({
-                            ...p,
-                            ...(parsed.detectedExpTier ? { experience: parsed.detectedExpTier } : {}),
-                            ...(parsed.detectedSkillTier ? { skill: parsed.detectedSkillTier } : {}),
-                          }));
-                        }
+                        setProfile((p) => ({
+                          ...p,
+                          ...(parsed.detectedExpTier ? { experience: parsed.detectedExpTier } : {}),
+                          ...(parsed.detectedSkillTier ? { skill: parsed.detectedSkillTier } : {}),
+                          resumeLeverageScore: parsed.score,
+                          resumeClientSignals: parsed.clientSignals,
+                          resumeLeadershipSignals: parsed.leadershipSignals,
+                          resumeMatchedKeywords: parsed.matchedKeywords,
+                        }));
                       };
                       reader.readAsText(file);
                     }}
@@ -3709,13 +3744,15 @@ export default function Page() {
                           const parsed = parseResumeForLeverage(text);
                           setResumeParseResult(parsed);
                           setLeverageScore(parsed.score);
-                          if (parsed.detectedExpTier) {
-                            setProfile((p) => ({
-                              ...p,
-                              ...(parsed.detectedExpTier ? { experience: parsed.detectedExpTier } : {}),
-                              ...(parsed.detectedSkillTier ? { skill: parsed.detectedSkillTier } : {}),
-                            }));
-                          }
+                          setProfile((p) => ({
+                            ...p,
+                            ...(parsed.detectedExpTier ? { experience: parsed.detectedExpTier } : {}),
+                            ...(parsed.detectedSkillTier ? { skill: parsed.detectedSkillTier } : {}),
+                            resumeLeverageScore: parsed.score,
+                            resumeClientSignals: parsed.clientSignals,
+                            resumeLeadershipSignals: parsed.leadershipSignals,
+                            resumeMatchedKeywords: parsed.matchedKeywords,
+                          }));
                         };
                         reader.readAsText(file);
                       };
@@ -3742,8 +3779,8 @@ export default function Page() {
                           </svg>
                         </div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 4 }}>Drop your résumé here or tap to browse</div>
-                        <div style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5 }}>Upload your resume (PDF) to auto-calibrate your market leverage matrix.</div>
-                        <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 6 }}>PDF · TXT · DOC — optional, skippable</div>
+                        <div style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5 }}>Upload your resume to auto-calibrate your market leverage matrix.</div>
+                        <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 6 }}>Text-readable PDF · TXT · DOC — optional, skippable</div>
                       </>
                     )}
                   </div>
@@ -3780,6 +3817,7 @@ export default function Page() {
                           <div style={{ fontSize: 11, color: "var(--text-3)" }}>
                             {resumeParseResult.yearsFound}+ yrs detected
                             {resumeParseResult.matchedKeywords.length > 0 && ` · ${resumeParseResult.matchedKeywords.length} enterprise signal${resumeParseResult.matchedKeywords.length !== 1 ? "s" : ""}`}
+                            {resumeParseResult.leadershipSignals.length > 0 && ` · ${resumeParseResult.leadershipSignals.length} leadership signal${resumeParseResult.leadershipSignals.length !== 1 ? "s" : ""}`}
                           </div>
                         )}
                         {resumeParseResult.detectedExpTier && (
