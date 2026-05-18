@@ -3687,9 +3687,10 @@ export default function Page() {
               style={{
                 marginTop: 8,
                 fontSize: 22,
-                fontWeight: 800,
-                letterSpacing: "-0.03em",
-                color: "var(--text)",
+                fontWeight: 700,
+                letterSpacing: "0.18em",
+                textTransform: "uppercase",
+                color: "var(--gold)",
               }}
             >
               Make it make sense
