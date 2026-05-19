@@ -1838,7 +1838,7 @@ function InvoicePreview({ deal, result, profile, draft }: { deal: Deal; result: 
       maximumFractionDigits: 2,
     });
   };
-  const issued = draft.issuedDate ? new Date(`${draft.issuedDate}T00:00:00`) : new Date();
+  const issued = draft.issuedDate ? new Date(`${draft.issuedDate}T00:00:00`) : new Date("2026-01-01T00:00:00");
   const due = draft.dueDate ? new Date(`${draft.dueDate}T00:00:00`) : issued;
   const dateFmt = (date: Date) => date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
@@ -2645,23 +2645,33 @@ function ExtraScreens({
   const simScrollRef = useRef<HTMLDivElement>(null);
   const [arfOpen, setArfOpen] = useState(false);
   const [arfAmount, setArfAmount] = useState("");
-  const [invoiceDraft, setInvoiceDraft] = useState<InvoiceDraft>(() => {
+  const [invoiceDraft, setInvoiceDraft] = useState<InvoiceDraft>({
+    invoiceNumber: "",
+    billedToName: "",
+    billedToContact: "Accounts Payable",
+    billedToEmail: "",
+    issuedDate: "",
+    dueDate: "",
+    terms: "Net 14",
+    depositPercent: "50",
+    paymentNote: "Payment via ACH or wire. Late fees of 1.5%/mo accrue after 30 days. Project license activates on final payment.",
+  });
+  useEffect(() => {
     const issued = new Date();
     const due = new Date(issued);
     due.setDate(issued.getDate() + 14);
     const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
-    return {
-      invoiceNumber: `MIMS-${issued.getFullYear()}-${String(Date.now()).slice(-4)}`,
-      billedToName: "",
-      billedToContact: "Accounts Payable",
-      billedToEmail: "",
-      issuedDate: toIsoDate(issued),
-      dueDate: toIsoDate(due),
-      terms: "Net 14",
-      depositPercent: "50",
-      paymentNote: "Payment via ACH or wire. Late fees of 1.5%/mo accrue after 30 days. Project license activates on final payment.",
-    };
-  });
+
+    setInvoiceDraft((draft) => {
+      if (draft.invoiceNumber || draft.issuedDate || draft.dueDate) return draft;
+      return {
+        ...draft,
+        invoiceNumber: `MIMS-${issued.getFullYear()}-${String(Date.now()).slice(-4)}`,
+        issuedDate: toIsoDate(issued),
+        dueDate: toIsoDate(due),
+      };
+    });
+  }, []);
   const dayMode = getRoleDayMode(deal.dealRole);
 
   const handleSimObjection = (obj: ObjectionEntry) => {
