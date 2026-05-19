@@ -92,7 +92,16 @@ interface AdditionalCrewLine {
   phase: "shoot" | "post" | "project";
 }
 
+interface AdditionalRoleLine {
+  role: string;
+  days: number;
+  dayRate: number;
+  subtotal: number;
+  phase: "shoot" | "post";
+}
+
 interface CrewSplit {
+  primaryRole: string;
   productionDayRate: number;
   shootDays: number;
   productionSubtotal: number;
@@ -100,6 +109,8 @@ interface CrewSplit {
   postDayRate: number;
   editDays: number;
   postSubtotal: number;
+  additionalRoleLines: AdditionalRoleLine[];
+  additionalRolesTotal: number;
   hasColor: boolean;
   hasSound: boolean;
   colorAlloc: number;
@@ -584,26 +595,67 @@ function computeRecommendation(
   const multipliers = extrasMult * resumeMult * locationMult * (1 + premiumLoading);
   const adjDay = base * multipliers;
 
-  const roleForCalc = (deal.dealRole || profile.trade).toLowerCase();
+  const primaryRole = deal.dealRole || profile.trade;
+  const roleForCalc = primaryRole.toLowerCase();
   const isMultiRole = roleForCalc.includes("videographer") && deal.shootDays > 0 && deal.editDays > 0;
-  const roleDayMode = getRoleDayMode(deal.dealRole || profile.trade);
+  const primaryMode = getRoleDayMode(primaryRole);
 
-  // If the user picked a secondary role for edit days (e.g. Director primary + Editor secondary),
-  // price edit days at that role's actual day rate, not a discount on the primary.
-  const secondaryRole = (deal.additionalRoles ?? [])[0] || "";
-  const secondaryBase = secondaryRole
-    ? getEstimatedBaseDayRate(profile, secondaryRole, isUnion, matchUnionRates)
-    : 0;
-  const secondaryDay = secondaryBase * multipliers;
+  const hasPostAdditionalRole = (deal.additionalRoles ?? []).some((role) => {
+    const mode = getRoleDayMode(role);
+    return mode === "post" || mode === "design";
+  });
 
-  const postDayRate = secondaryRole
-    ? secondaryDay
-    : isMultiRole || roleDayMode === "post" || roleDayMode === "design"
-      ? adjDay
-      : adjDay * 0.75;
+  let primaryShoot = 0;
+  let primaryEdit = 0;
 
-  const shoot = deal.shootDays * adjDay;
-  const edit = deal.editDays * postDayRate;
+  if (primaryMode === "post" || primaryMode === "design") {
+    primaryEdit = deal.editDays * adjDay;
+  } else {
+    primaryShoot = deal.shootDays * adjDay;
+    if (deal.editDays > 0 && !hasPostAdditionalRole) {
+      const primaryPostDayRate =
+        isMultiRole || primaryMode === "dual" ? adjDay : adjDay * 0.75;
+      primaryEdit = deal.editDays * primaryPostDayRate;
+    }
+  }
+
+  const additionalRoleLines: AdditionalRoleLine[] = [];
+  let additionalRolesTotal = 0;
+
+  for (const role of deal.additionalRoles ?? []) {
+    if (!role) continue;
+    const mode = getRoleDayMode(role);
+    const roleDay =
+      getEstimatedBaseDayRate(profile, role, isUnion, matchUnionRates) * multipliers;
+
+    if (mode === "post" || mode === "design") {
+      const subtotal = deal.editDays * roleDay;
+      if (subtotal <= 0) continue;
+      additionalRoleLines.push({
+        role,
+        days: deal.editDays,
+        dayRate: roleDay,
+        subtotal,
+        phase: "post",
+      });
+      additionalRolesTotal += subtotal;
+    } else {
+      const subtotal = deal.shootDays * roleDay;
+      if (subtotal <= 0) continue;
+      additionalRoleLines.push({
+        role,
+        days: deal.shootDays,
+        dayRate: roleDay,
+        subtotal,
+        phase: "shoot",
+      });
+      additionalRolesTotal += subtotal;
+    }
+  }
+
+  const shoot = primaryShoot;
+  const edit = primaryEdit;
+  const postDayRate = deal.editDays > 0 ? primaryEdit / deal.editDays : 0;
   const prePro = 0;
   const usageLicense =
     deal.usage === "organic"
@@ -707,7 +759,7 @@ function computeRecommendation(
     0,
   );
 
-  let laborTarget = shoot + edit + prePro + usageLicense + unionPH;
+  let laborTarget = shoot + edit + additionalRolesTotal + prePro + usageLicense + unionPH;
   laborTarget *= (1 + scopeServicesMult);
   laborTarget = Math.round((laborTarget * compositeMult) / 50) * 50;
   const target = laborTarget + kitFeeTotal + additionalCrewTotal;
@@ -791,6 +843,7 @@ function computeRecommendation(
   }
 
   const crewSplit: CrewSplit = {
+    primaryRole,
     productionDayRate: Math.round(adjDay * compositeMult),
     shootDays: deal.shootDays,
     productionSubtotal: Math.round(shoot * compositeMult),
@@ -798,6 +851,12 @@ function computeRecommendation(
     postDayRate: Math.round(postDayRate * compositeMult),
     editDays: deal.editDays,
     postSubtotal: Math.round(edit * compositeMult),
+    additionalRoleLines: additionalRoleLines.map((line) => ({
+      ...line,
+      dayRate: Math.round(line.dayRate * compositeMult),
+      subtotal: Math.round(line.subtotal * compositeMult),
+    })),
+    additionalRolesTotal: Math.round(additionalRolesTotal * compositeMult),
     hasColor: profile.extras.some((extra) => extra.toLowerCase().includes("color")),
     hasSound: profile.extras.some((extra) => extra.toLowerCase().includes("sound")),
     colorAlloc: profile.extras.some((extra) => extra.toLowerCase().includes("color")) ? Math.round(edit * compositeMult * 0.15) : 0,
@@ -1759,7 +1818,7 @@ function buildInvoiceLines(deal: Deal, result: Recommendation | null, profile: P
   }
 
   const lines: InvoiceLine[] = [];
-  if (cs.shootDays > 0) {
+  if (cs.shootDays > 0 && cs.productionSubtotal > 0) {
     lines.push({
       item: `${primaryRole} production / shoot`,
       qty: String(cs.shootDays),
@@ -1767,18 +1826,35 @@ function buildInvoiceLines(deal: Deal, result: Recommendation | null, profile: P
       amount: cs.productionSubtotal,
     });
   }
+  for (const line of cs.additionalRoleLines.filter((l) => l.phase === "shoot")) {
+    lines.push({
+      item: `${line.role} production / shoot`,
+      qty: String(line.days),
+      rate: line.dayRate,
+      amount: line.subtotal,
+    });
+  }
   if (cs.prePro > 0) {
     lines.push({ item: "Pre-production & prep", qty: "1", rate: cs.prePro, amount: cs.prePro });
   }
-  if (cs.editDays > 0) {
-    const secondaryRole = (deal.additionalRoles ?? [])[0] || "";
-    const baseLabel = getRoleDayMode(primaryRole) === "design" ? "Design / working days" : "Post-production / edit days";
-    const editLabel = secondaryRole ? `${secondaryRole} · ${baseLabel.toLowerCase()}` : baseLabel;
+  if (cs.editDays > 0 && cs.postSubtotal > 0) {
+    const baseLabel =
+      getRoleDayMode(primaryRole) === "design"
+        ? "Design / working days"
+        : "Post-production / edit days";
     lines.push({
-      item: editLabel,
+      item: `${primaryRole} · ${baseLabel.toLowerCase()}`,
       qty: String(cs.editDays),
       rate: cs.postDayRate,
       amount: cs.postSubtotal,
+    });
+  }
+  for (const line of cs.additionalRoleLines.filter((l) => l.phase === "post")) {
+    lines.push({
+      item: `${line.role} · post-production / edit days`,
+      qty: String(line.days),
+      rate: line.dayRate,
+      amount: line.subtotal,
     });
   }
   for (const svc of SCOPE_SERVICE_OPTIONS.filter((s) => (deal.scopeServices ?? []).includes(s.id))) {
@@ -2003,29 +2079,48 @@ function SowPreview({ deal, result, profile }: { deal: Deal; result: Recommendat
           </tr>
         </thead>
         <tbody>
-          {cs && cs.shootDays > 0 && (
+          {cs && cs.shootDays > 0 && cs.productionSubtotal > 0 && (
             <tr>
-              <td>Production / Shoot ({cs.shootDays} day{cs.shootDays !== 1 ? "s" : ""})</td>
+              <td>
+                {primaryRole} · production / shoot ({cs.shootDays} day{cs.shootDays !== 1 ? "s" : ""})
+              </td>
               <td style={{ textAlign: "right" }}>${fmt(cs.productionSubtotal)}</td>
             </tr>
           )}
+          {cs?.additionalRoleLines
+            .filter((line) => line.phase === "shoot")
+            .map((line) => (
+              <tr key={`${line.role}-shoot`}>
+                <td>
+                  {line.role} · production / shoot ({line.days} day{line.days !== 1 ? "s" : ""})
+                </td>
+                <td style={{ textAlign: "right" }}>${fmt(line.subtotal)}</td>
+              </tr>
+            ))}
           {cs && cs.prePro > 0 && (
             <tr>
               <td>Pre-production & prep</td>
               <td style={{ textAlign: "right" }}>${fmt(cs.prePro)}</td>
             </tr>
           )}
-          {cs && cs.editDays > 0 && (
+          {cs && cs.editDays > 0 && cs.postSubtotal > 0 && (
             <tr>
               <td>
-                {((deal.additionalRoles ?? [])[0]
-                  ? `${(deal.additionalRoles ?? [])[0]} · post-production`
-                  : "Post-production / Edit")}{" "}
-                ({cs.editDays} day{cs.editDays !== 1 ? "s" : ""})
+                {primaryRole} · post-production / edit ({cs.editDays} day{cs.editDays !== 1 ? "s" : ""})
               </td>
               <td style={{ textAlign: "right" }}>${fmt(cs.postSubtotal)}</td>
             </tr>
           )}
+          {cs?.additionalRoleLines
+            .filter((line) => line.phase === "post")
+            .map((line) => (
+              <tr key={`${line.role}-post`}>
+                <td>
+                  {line.role} · post-production / edit ({line.days} day{line.days !== 1 ? "s" : ""})
+                </td>
+                <td style={{ textAlign: "right" }}>${fmt(line.subtotal)}</td>
+              </tr>
+            ))}
           {selectedServices.map((svc) => {
             const lineAmt = cs ? Math.round((cs.postSubtotal + cs.productionSubtotal) * svc.mult) : 0;
             return (
@@ -2124,10 +2219,18 @@ type Props = {
 };
 
 function CrewSplitCard({ cs }: { cs: CrewSplit }) {
-  const shootSubtotal = cs.productionSubtotal + cs.prePro;
-  const grandTotal = shootSubtotal + cs.postSubtotal + cs.usageLicense + cs.kitFeeTotal + cs.additionalCrewTotal;
+  const shootAdditionalTotal = cs.additionalRoleLines
+    .filter((line) => line.phase === "shoot")
+    .reduce((sum, line) => sum + line.subtotal, 0);
+  const postAdditionalTotal = cs.additionalRoleLines
+    .filter((line) => line.phase === "post")
+    .reduce((sum, line) => sum + line.subtotal, 0);
+  const shootSubtotal = cs.productionSubtotal + shootAdditionalTotal + cs.prePro;
+  const postPhaseTotal = cs.postSubtotal + postAdditionalTotal;
+  const grandTotal =
+    shootSubtotal + postPhaseTotal + cs.usageLicense + cs.kitFeeTotal + cs.additionalCrewTotal;
   const shootPct = grandTotal > 0 ? Math.round((shootSubtotal / grandTotal) * 100) : 0;
-  const postPct = grandTotal > 0 ? Math.round((cs.postSubtotal / grandTotal) * 100) : 0;
+  const postPct = grandTotal > 0 ? Math.round((postPhaseTotal / grandTotal) * 100) : 0;
 
   const rowStyle: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 };
   const sectionLabelStyle: CSSProperties = { fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-3)" };
@@ -2158,11 +2261,24 @@ function CrewSplitCard({ cs }: { cs: CrewSplit }) {
           </div>
           <div style={rowStyle}>
             <div>
-              <div style={lineNameStyle}>Camera / Cinematography</div>
+              <div style={lineNameStyle}>{cs.primaryRole || "Primary role"}</div>
               <div style={lineSubStyle}>{cs.shootDays} day{cs.shootDays !== 1 ? "s" : ""} × ${fmt(cs.productionDayRate)}/day</div>
             </div>
             <span style={amountStyle}>${fmt(cs.productionSubtotal)}</span>
           </div>
+          {cs.additionalRoleLines
+            .filter((line) => line.phase === "shoot")
+            .map((line) => (
+              <div key={`${line.role}-shoot`} style={rowStyle}>
+                <div>
+                  <div style={lineNameStyle}>{line.role}</div>
+                  <div style={lineSubStyle}>
+                    {line.days} day{line.days !== 1 ? "s" : ""} × ${fmt(line.dayRate)}/day
+                  </div>
+                </div>
+                <span style={amountStyle}>${fmt(line.subtotal)}</span>
+              </div>
+            ))}
           {cs.prePro > 0 && (
             <div style={{ ...rowStyle, marginBottom: 10 }}>
               <span style={lineNameStyle}>Pre-production &amp; prep</span>
@@ -2185,15 +2301,32 @@ function CrewSplitCard({ cs }: { cs: CrewSplit }) {
         <div style={{ marginBottom: cs.usageLicense > 0 ? 16 : 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
             <span style={sectionLabelStyle}>Post-Production</span>
-            <span style={{ fontSize: 14, fontWeight: 700 }}>${fmt(cs.postSubtotal)}</span>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>${fmt(postPhaseTotal)}</span>
           </div>
-          <div style={rowStyle}>
-            <div>
-              <div style={lineNameStyle}>Editing &amp; assembly</div>
-              <div style={lineSubStyle}>{cs.editDays} day{cs.editDays !== 1 ? "s" : ""} × ${fmt(cs.postDayRate)}/day</div>
+          {cs.postSubtotal > 0 && (
+            <div style={rowStyle}>
+              <div>
+                <div style={lineNameStyle}>{cs.primaryRole || "Primary role"}</div>
+                <div style={lineSubStyle}>
+                  {cs.editDays} day{cs.editDays !== 1 ? "s" : ""} × ${fmt(cs.postDayRate)}/day
+                </div>
+              </div>
+              <span style={amountStyle}>${fmt(cs.postSubtotal - cs.colorAlloc - cs.soundAlloc)}</span>
             </div>
-            <span style={amountStyle}>${fmt(cs.postSubtotal - cs.colorAlloc - cs.soundAlloc)}</span>
-          </div>
+          )}
+          {cs.additionalRoleLines
+            .filter((line) => line.phase === "post")
+            .map((line) => (
+              <div key={`${line.role}-post`} style={rowStyle}>
+                <div>
+                  <div style={lineNameStyle}>{line.role}</div>
+                  <div style={lineSubStyle}>
+                    {line.days} day{line.days !== 1 ? "s" : ""} × ${fmt(line.dayRate)}/day
+                  </div>
+                </div>
+                <span style={amountStyle}>${fmt(line.subtotal)}</span>
+              </div>
+            ))}
           {cs.hasColor && (
             <div style={rowStyle}>
               <span style={lineNameStyle}>Color grading</span>
@@ -2895,7 +3028,7 @@ function ExtraScreens({
               </div>
 
               <div className="field">
-                <label>Edit-day role (optional)</label>
+                <label>Additional role (optional)</label>
                 <select
                   value={(deal.additionalRoles ?? [])[0] ?? ""}
                   onChange={(e) =>
@@ -2905,14 +3038,17 @@ function ExtraScreens({
                     }))
                   }
                 >
-                  <option value="">Use my primary role for edit days</option>
+                  <option value="">No additional role</option>
                   {ADDITIONAL_ROLE_OPTIONS.map((role) => (
                     <option key={role.id} value={role.id}>
                       {role.label}
                     </option>
                   ))}
                 </select>
-                <p className="helper">If your edit days are billed at a different role&apos;s rate (e.g. Editor), pick it here. Shoot days still use your primary role above.</p>
+                <p className="helper">
+                  Bill each extra role at its own day rate. Production roles (Director, DP, etc.) charge per shoot day.
+                  Post roles (Editor, Colorist, etc.) charge per edit day.
+                </p>
               </div>
 
               <div className="field">
