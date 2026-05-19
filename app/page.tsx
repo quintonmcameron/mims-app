@@ -581,14 +581,26 @@ function computeRecommendation(
   const usagePremium = ({ organic: 0, paid: 0.25, broadcast: 0.5 } as Record<string, number>)[deal.usage] || 0;
   const premiumLoading = Math.min(rushPremium + usagePremium, 0.5);
 
-  const adjDay = base * extrasMult * resumeMult * locationMult * (1 + premiumLoading);
+  const multipliers = extrasMult * resumeMult * locationMult * (1 + premiumLoading);
+  const adjDay = base * multipliers;
 
-  // Pure post/design roles should scale at the full day rate. For production-first roles,
-  // edit days remain discounted unless the same person is covering a true dual-role scope.
   const roleForCalc = (deal.dealRole || profile.trade).toLowerCase();
   const isMultiRole = roleForCalc.includes("videographer") && deal.shootDays > 0 && deal.editDays > 0;
   const roleDayMode = getRoleDayMode(deal.dealRole || profile.trade);
-  const postDayRate = isMultiRole || roleDayMode === "post" || roleDayMode === "design" ? adjDay : adjDay * 0.75;
+
+  // If the user picked a secondary role for edit days (e.g. Director primary + Editor secondary),
+  // price edit days at that role's actual day rate, not a discount on the primary.
+  const secondaryRole = (deal.additionalRoles ?? [])[0] || "";
+  const secondaryBase = secondaryRole
+    ? getEstimatedBaseDayRate(profile, secondaryRole, isUnion, matchUnionRates)
+    : 0;
+  const secondaryDay = secondaryBase * multipliers;
+
+  const postDayRate = secondaryRole
+    ? secondaryDay
+    : isMultiRole || roleDayMode === "post" || roleDayMode === "design"
+      ? adjDay
+      : adjDay * 0.75;
 
   const shoot = deal.shootDays * adjDay;
   const edit = deal.editDays * postDayRate;
@@ -1759,8 +1771,11 @@ function buildInvoiceLines(deal: Deal, result: Recommendation | null, profile: P
     lines.push({ item: "Pre-production & prep", qty: "1", rate: cs.prePro, amount: cs.prePro });
   }
   if (cs.editDays > 0) {
+    const secondaryRole = (deal.additionalRoles ?? [])[0] || "";
+    const baseLabel = getRoleDayMode(primaryRole) === "design" ? "Design / working days" : "Post-production / edit days";
+    const editLabel = secondaryRole ? `${secondaryRole} · ${baseLabel.toLowerCase()}` : baseLabel;
     lines.push({
-      item: `${getRoleDayMode(primaryRole) === "design" ? "Design / working" : "Post-production / edit"} days`,
+      item: editLabel,
       qty: String(cs.editDays),
       rate: cs.postDayRate,
       amount: cs.postSubtotal,
@@ -2002,7 +2017,12 @@ function SowPreview({ deal, result, profile }: { deal: Deal; result: Recommendat
           )}
           {cs && cs.editDays > 0 && (
             <tr>
-              <td>Post-production / Edit ({cs.editDays} day{cs.editDays !== 1 ? "s" : ""})</td>
+              <td>
+                {((deal.additionalRoles ?? [])[0]
+                  ? `${(deal.additionalRoles ?? [])[0]} · post-production`
+                  : "Post-production / Edit")}{" "}
+                ({cs.editDays} day{cs.editDays !== 1 ? "s" : ""})
+              </td>
               <td style={{ textAlign: "right" }}>${fmt(cs.postSubtotal)}</td>
             </tr>
           )}
@@ -2862,6 +2882,27 @@ function ExtraScreens({
                     }));
                   }}
                 />
+              </div>
+
+              <div className="field">
+                <label>Edit-day role (optional)</label>
+                <select
+                  value={(deal.additionalRoles ?? [])[0] ?? ""}
+                  onChange={(e) =>
+                    setDeal((d) => ({
+                      ...d,
+                      additionalRoles: e.target.value ? [e.target.value] : [],
+                    }))
+                  }
+                >
+                  <option value="">Use my primary role for edit days</option>
+                  {ADDITIONAL_ROLE_OPTIONS.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="helper">If your edit days are billed at a different role&apos;s rate (e.g. Editor), pick it here. Shoot days still use your primary role above.</p>
               </div>
 
               <div className="field">
