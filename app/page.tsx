@@ -669,9 +669,6 @@ function computeRecommendation(
       : `Gear Locker · ${rateLabel} operator rate · ${kitDays} day${kitDays !== 1 ? "s" : ""}`;
   }
 
-  // Additional role stacking: 60% of adjDay per active secondary role per day
-  const totalDays = deal.shootDays + deal.editDays || 1;
-  const additionalRoleBonus = Math.round(adjDay * 0.6 * totalDays * (deal.additionalRoles ?? []).length);
   const additionalCrew = (deal.additionalCrew ?? []).map((crewId) => {
     const option = ADDITIONAL_CREW_OPTIONS.find((crew) => crew.id === crewId);
     if (!option) return null;
@@ -698,7 +695,7 @@ function computeRecommendation(
     0,
   );
 
-  let laborTarget = shoot + edit + prePro + usageLicense + unionPH + additionalRoleBonus;
+  let laborTarget = shoot + edit + prePro + usageLicense + unionPH;
   laborTarget *= (1 + scopeServicesMult);
   laborTarget = Math.round((laborTarget * compositeMult) / 50) * 50;
   const target = laborTarget + kitFeeTotal + additionalCrewTotal;
@@ -1061,16 +1058,6 @@ const ADDITIONAL_ROLE_OPTIONS = NOVA_ROLES.map((role) => ({
   id: role,
   label: role,
 }));
-
-const DEMO_PROFILE = {
-  name: "Quinton Cameron",
-  email: "quinton@qcfilms.co",
-  trade: "videographer",
-  experience: "expert",
-  skill: "expert",
-  location: "Atlanta, GA",
-  extras: ["color", "sound", "motion"],
-};
 
 const LOADING_STEPS = [
   "Pulling 2026 rate benchmarks…",
@@ -1783,15 +1770,6 @@ function buildInvoiceLines(deal: Deal, result: Recommendation | null, profile: P
     const amount = Math.round((cs.postSubtotal + cs.productionSubtotal) * svc.mult);
     if (amount > 0) lines.push({ item: svc.label, qty: "1", rate: amount, amount });
   }
-  if ((deal.additionalRoles ?? []).length > 0) {
-    const amount = Math.round(cs.productionDayRate * 0.6 * (deal.shootDays + deal.editDays || 1) * (deal.additionalRoles ?? []).length);
-    lines.push({
-      item: `Multi-role upcharge (${(deal.additionalRoles ?? []).join(", ")})`,
-      qty: String((deal.additionalRoles ?? []).length),
-      rate: amount,
-      amount,
-    });
-  }
   for (const crew of cs.additionalCrew) {
     lines.push({
       item: `Additional crew · ${crew.label}`,
@@ -1837,7 +1815,14 @@ function InvoicePreview({ deal, result, profile, draft }: { deal: Deal; result: 
   const lines = buildInvoiceLines(deal, result, profile);
   const subtotal = lines.reduce((sum, line) => sum + line.amount, 0);
   const depositPercent = Math.max(0, Math.min(100, parseFloat(draft.depositPercent) || 0));
-  const deposit = Math.round((subtotal * (depositPercent / 100)) / 50) * 50;
+  const deposit = Math.round(subtotal * (depositPercent / 100) * 100) / 100;
+  const formatMoney = (n: number) => {
+    const hasCents = Math.round(n * 100) % 100 !== 0;
+    return n.toLocaleString("en-US", {
+      minimumFractionDigits: hasCents ? 2 : 0,
+      maximumFractionDigits: 2,
+    });
+  };
   const issued = draft.issuedDate ? new Date(`${draft.issuedDate}T00:00:00`) : new Date();
   const due = draft.dueDate ? new Date(`${draft.dueDate}T00:00:00`) : issued;
   const dateFmt = (date: Date) => date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -1922,7 +1907,7 @@ function InvoicePreview({ deal, result, profile, draft }: { deal: Deal; result: 
         }}
       >
         <span style={{ color: "#6F6F6F" }}>{depositPercent}% deposit (due now)</span>
-        <span>${fmt(deposit)}</span>
+        <span>${formatMoney(deposit)}</span>
       </div>
 
       <div className="total">
@@ -1987,7 +1972,7 @@ function SowPreview({ deal, result, profile }: { deal: Deal; result: Recommendat
             return rl ? (
               <tr key={rid}>
                 <td>{rl.label}</td>
-                <td style={{ textAlign: "right", color: "#444" }}>Additional seat · +60%</td>
+                <td style={{ textAlign: "right", color: "#444" }}>Additional role</td>
               </tr>
             ) : null;
           })}
@@ -2030,12 +2015,6 @@ function SowPreview({ deal, result, profile }: { deal: Deal; result: Recommendat
               </tr>
             );
           })}
-          {(deal.additionalRoles ?? []).length > 0 && cs && (
-            <tr>
-              <td>Multi-role upcharge ({(deal.additionalRoles ?? []).length} secondary role{(deal.additionalRoles ?? []).length !== 1 ? "s" : ""})</td>
-              <td style={{ textAlign: "right" }}>${fmt(Math.round(cs.productionDayRate * 0.6 * (deal.shootDays + deal.editDays || 1) * (deal.additionalRoles ?? []).length))}</td>
-            </tr>
-          )}
           {cs && cs.usageLicense > 0 && (
             <tr>
               <td>Usage & licensing rights</td>
@@ -2883,27 +2862,6 @@ function ExtraScreens({
                     }));
                   }}
                 />
-              </div>
-
-              <div className="field">
-                <label>Additional Positions (Multi-Role Upcharge)</label>
-                <select
-                  value={(deal.additionalRoles ?? [])[0] ?? ""}
-                  onChange={(e) =>
-                    setDeal((d) => ({
-                      ...d,
-                      additionalRoles: e.target.value ? [e.target.value] : [],
-                    }))
-                  }
-                >
-                  <option value="">No Secondary Position (Single Role)</option>
-                  {ADDITIONAL_ROLE_OPTIONS.map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.label}
-                    </option>
-                  ))}
-                </select>
-                <p className="helper">Select a concurrent role for this project to calculate your multi-seat operational upcharge premium.</p>
               </div>
 
               <div className="field">
@@ -3801,8 +3759,8 @@ function ExtraScreens({
       <div className={screenClass("profile")}>
         <div className="scroll">
           <div className="card center">
-            <h2>{displayName}</h2>
-            <p className="muted small">{profileRole}</p>
+            <h2>{displayName || "Your profile"}</h2>
+            {profileRole && <p className="muted small">{profileRole}</p>}
           </div>
           <button type="button" className="card" onClick={() => go("welcome")}>
             Re-take questionnaire
@@ -3967,11 +3925,9 @@ export default function Page() {
   const [isUnion, setIsUnion] = useState(false);
   const [matchUnionRates, setMatchUnionRates] = useState(false);
 
-  const displayName = profile.name || "Quinton Cameron";
-  const homeFirst = displayName.split(" ")[0];
-  const profileRole =
-    [tradeLabel(profile.trade), profile.location].filter(Boolean).join(" · ") ||
-    "Videographer · Atlanta, GA";
+  const displayName = profile.name || "";
+  const homeFirst = displayName ? displayName.split(" ")[0] : "";
+  const profileRole = [tradeLabel(profile.trade), profile.location].filter(Boolean).join(" · ");
 
   const go = useCallback((id: ScreenId) => {
     setScreen(id);
@@ -4375,7 +4331,7 @@ export default function Page() {
                   <label>Your name (or business name)</label>
                   <input
                     type="text"
-                    placeholder="e.g. Quinton Cameron · QC Films"
+                    placeholder="e.g. Your Name · Studio Name"
                     value={setupName}
                     onChange={(e) => setSetupName(e.target.value)}
                   />
@@ -4608,7 +4564,7 @@ export default function Page() {
           <div className="scroll">
             <div style={{ marginBottom: 20 }}>
               <div className="eyebrow" style={{ marginBottom: 4 }}>
-                Hello {homeFirst}
+                {homeFirst ? `Hello ${homeFirst}` : "Welcome"}
               </div>
               <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700, color: "#ffffff", letterSpacing: "-0.01em" }}>
                 let us make this deal make sense
