@@ -1728,19 +1728,132 @@ function DealItem({
   );
 }
 
-function InvoicePreview() {
+type InvoiceDraft = {
+  invoiceNumber: string;
+  billedToName: string;
+  billedToContact: string;
+  billedToEmail: string;
+  issuedDate: string;
+  dueDate: string;
+  terms: string;
+  depositPercent: string;
+  paymentNote: string;
+};
+
+type InvoiceLine = {
+  item: string;
+  qty: string;
+  rate: number;
+  amount: number;
+};
+
+function buildInvoiceLines(deal: Deal, result: Recommendation | null, profile: Profile): InvoiceLine[] {
+  const cs = result?.crewSplit;
+  const primaryRole = deal.dealRole || profile.trade || "Creative services";
+  if (!cs) {
+    return [{
+      item: `${primaryRole}${deal.project ? ` · ${deal.project}` : ""}`,
+      qty: "1",
+      rate: result?.target ?? 0,
+      amount: result?.target ?? 0,
+    }];
+  }
+
+  const lines: InvoiceLine[] = [];
+  if (cs.shootDays > 0) {
+    lines.push({
+      item: `${primaryRole} production / shoot`,
+      qty: String(cs.shootDays),
+      rate: cs.productionDayRate,
+      amount: cs.productionSubtotal,
+    });
+  }
+  if (cs.prePro > 0) {
+    lines.push({ item: "Pre-production & prep", qty: "1", rate: cs.prePro, amount: cs.prePro });
+  }
+  if (cs.editDays > 0) {
+    lines.push({
+      item: `${getRoleDayMode(primaryRole) === "design" ? "Design / working" : "Post-production / edit"} days`,
+      qty: String(cs.editDays),
+      rate: cs.postDayRate,
+      amount: cs.postSubtotal,
+    });
+  }
+  for (const svc of SCOPE_SERVICE_OPTIONS.filter((s) => (deal.scopeServices ?? []).includes(s.id))) {
+    const amount = Math.round((cs.postSubtotal + cs.productionSubtotal) * svc.mult);
+    if (amount > 0) lines.push({ item: svc.label, qty: "1", rate: amount, amount });
+  }
+  if ((deal.additionalRoles ?? []).length > 0) {
+    const amount = Math.round(cs.productionDayRate * 0.6 * (deal.shootDays + deal.editDays || 1) * (deal.additionalRoles ?? []).length);
+    lines.push({
+      item: `Multi-role upcharge (${(deal.additionalRoles ?? []).join(", ")})`,
+      qty: String((deal.additionalRoles ?? []).length),
+      rate: amount,
+      amount,
+    });
+  }
+  for (const crew of cs.additionalCrew) {
+    lines.push({
+      item: `Additional crew · ${crew.label}`,
+      qty: String(crew.days),
+      rate: crew.rate,
+      amount: crew.total,
+    });
+  }
+  if (cs.usageLicense > 0) {
+    lines.push({
+      item: `Usage & licensing rights · ${deal.usage}`,
+      qty: "1",
+      rate: cs.usageLicense,
+      amount: cs.usageLicense,
+    });
+  }
+  if (cs.kitFeeTotal > 0) {
+    lines.push({
+      item: cs.kitFeeLabel || "Equipment / kit rental",
+      qty: "1",
+      rate: cs.kitFeeTotal,
+      amount: cs.kitFeeTotal,
+    });
+  }
+
+  const lineTotal = lines.reduce((sum, line) => sum + line.amount, 0);
+  const target = result?.target ?? lineTotal;
+  const adjustment = target - lineTotal;
+  if (Math.abs(adjustment) >= 25) {
+    lines.push({
+      item: adjustment > 0 ? "Market / scope pricing adjustment" : "Estimate rounding adjustment",
+      qty: "1",
+      rate: adjustment,
+      amount: adjustment,
+    });
+  }
+  return lines;
+}
+
+function InvoicePreview({ deal, result, profile, draft }: { deal: Deal; result: Recommendation | null; profile: Profile; draft: InvoiceDraft }) {
+  const creator = profile.name || "Your Studio";
+  const creatorEmail = profile.email || "you@studio.com";
+  const lines = buildInvoiceLines(deal, result, profile);
+  const subtotal = lines.reduce((sum, line) => sum + line.amount, 0);
+  const depositPercent = Math.max(0, Math.min(100, parseFloat(draft.depositPercent) || 0));
+  const deposit = Math.round((subtotal * (depositPercent / 100)) / 50) * 50;
+  const issued = draft.issuedDate ? new Date(`${draft.issuedDate}T00:00:00`) : new Date();
+  const due = draft.dueDate ? new Date(`${draft.dueDate}T00:00:00`) : issued;
+  const dateFmt = (date: Date) => date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
   return (
     <div className="doc-preview">
       <div className="doc-head">
         <div>
           <h2>INVOICE</h2>
           <div className="label-sm" style={{ marginTop: 4 }}>
-            #MIMS-2026-0142
+            #{draft.invoiceNumber || "MIMS-DRAFT"}
           </div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontWeight: 700 }}>QC Films</div>
-          <div style={{ color: "#6F6F6F", fontSize: 12 }}>quinton@qcfilms.co</div>
+          <div style={{ fontWeight: 700 }}>{creator}</div>
+          <div style={{ color: "#6F6F6F", fontSize: 12 }}>{creatorEmail}</div>
         </div>
       </div>
 
@@ -1754,17 +1867,17 @@ function InvoicePreview() {
       >
         <div>
           <div className="label-sm">Billed to</div>
-          <div style={{ fontWeight: 600, marginTop: 2 }}>Client name</div>
-          <div style={{ color: "#6F6F6F" }}>Accounts Payable</div>
-          <div style={{ color: "#6F6F6F" }}>billing@example.com</div>
+          <div style={{ fontWeight: 600, marginTop: 2 }}>{draft.billedToName || deal.client || "Client name"}</div>
+          <div style={{ color: "#6F6F6F" }}>{draft.billedToContact || "Accounts Payable"}</div>
+          <div style={{ color: "#6F6F6F" }}>{draft.billedToEmail || "billing@example.com"}</div>
         </div>
         <div>
           <div className="label-sm">Issued</div>
-          <div style={{ marginTop: 2 }}>May 14, 2026</div>
+          <div style={{ marginTop: 2 }}>{dateFmt(issued)}</div>
           <div className="label-sm" style={{ marginTop: 8 }}>
             Due
           </div>
-          <div>Net 14 · May 28, 2026</div>
+          <div>{draft.terms || "Net 14"} · {dateFmt(due)}</div>
         </div>
       </div>
 
@@ -1778,36 +1891,14 @@ function InvoicePreview() {
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td>Pre-production & creative direction</td>
-            <td style={{ textAlign: "right" }}>1</td>
-            <td style={{ textAlign: "right" }}>$800</td>
-            <td style={{ textAlign: "right" }}>$800</td>
-          </tr>
-          <tr>
-            <td>Shoot day — full crew</td>
-            <td style={{ textAlign: "right" }}>2</td>
-            <td style={{ textAlign: "right" }}>$1,800</td>
-            <td style={{ textAlign: "right" }}>$3,600</td>
-          </tr>
-          <tr>
-            <td>Edit day — picture lock</td>
-            <td style={{ textAlign: "right" }}>3</td>
-            <td style={{ textAlign: "right" }}>$900</td>
-            <td style={{ textAlign: "right" }}>$2,700</td>
-          </tr>
-          <tr>
-            <td>Color + sound</td>
-            <td style={{ textAlign: "right" }}>1</td>
-            <td style={{ textAlign: "right" }}>$650</td>
-            <td style={{ textAlign: "right" }}>$650</td>
-          </tr>
-          <tr>
-            <td>Organic usage license · 12 mo</td>
-            <td style={{ textAlign: "right" }}>1</td>
-            <td style={{ textAlign: "right" }}>$650</td>
-            <td style={{ textAlign: "right" }}>$650</td>
-          </tr>
+          {lines.map((line, index) => (
+            <tr key={`${line.item}-${index}`}>
+              <td>{line.item}</td>
+              <td style={{ textAlign: "right" }}>{line.qty}</td>
+              <td style={{ textAlign: "right" }}>${fmt(Math.round(line.rate))}</td>
+              <td style={{ textAlign: "right" }}>${fmt(Math.round(line.amount))}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
 
@@ -1820,7 +1911,7 @@ function InvoicePreview() {
         }}
       >
         <span style={{ color: "#6F6F6F" }}>Subtotal</span>
-        <span>$8,400</span>
+        <span>${fmt(Math.round(subtotal))}</span>
       </div>
       <div
         style={{
@@ -1830,13 +1921,13 @@ function InvoicePreview() {
           marginTop: 6,
         }}
       >
-        <span style={{ color: "#6F6F6F" }}>50% deposit (due now)</span>
-        <span>$4,200</span>
+        <span style={{ color: "#6F6F6F" }}>{depositPercent}% deposit (due now)</span>
+        <span>${fmt(deposit)}</span>
       </div>
 
       <div className="total">
         <span>Total due</span>
-        <span>$8,400</span>
+        <span>${fmt(Math.round(subtotal))}</span>
       </div>
 
       <div
@@ -1847,8 +1938,7 @@ function InvoicePreview() {
           lineHeight: 1.5,
         }}
       >
-        Payment via ACH or wire. Late fees of 1.5%/mo accrue after 30 days.
-        Project license activates on final payment.
+        {draft.paymentNote || "Payment via ACH or wire. Late fees of 1.5%/mo accrue after 30 days. Project license activates on final payment."}
       </div>
     </div>
   );
@@ -1952,6 +2042,12 @@ function SowPreview({ deal, result, profile }: { deal: Deal; result: Recommendat
               <td style={{ textAlign: "right" }}>${fmt(cs.usageLicense)}</td>
             </tr>
           )}
+          {cs?.additionalCrew.map((crew) => (
+            <tr key={crew.id}>
+              <td>Additional crew · {crew.label} ({crew.days} day{crew.days !== 1 ? "s" : ""})</td>
+              <td style={{ textAlign: "right" }}>${fmt(crew.total)}</td>
+            </tr>
+          ))}
           {cs && cs.kitFeeTotal > 0 && (
             <tr>
               <td>Equipment / kit rental</td>
@@ -2550,6 +2646,23 @@ function ExtraScreens({
   const simScrollRef = useRef<HTMLDivElement>(null);
   const [arfOpen, setArfOpen] = useState(false);
   const [arfAmount, setArfAmount] = useState("");
+  const [invoiceDraft, setInvoiceDraft] = useState<InvoiceDraft>(() => {
+    const issued = new Date();
+    const due = new Date(issued);
+    due.setDate(issued.getDate() + 14);
+    const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
+    return {
+      invoiceNumber: `MIMS-${issued.getFullYear()}-${String(Date.now()).slice(-4)}`,
+      billedToName: "",
+      billedToContact: "Accounts Payable",
+      billedToEmail: "",
+      issuedDate: toIsoDate(issued),
+      dueDate: toIsoDate(due),
+      terms: "Net 14",
+      depositPercent: "50",
+      paymentNote: "Payment via ACH or wire. Late fees of 1.5%/mo accrue after 30 days. Project license activates on final payment.",
+    };
+  });
   const dayMode = getRoleDayMode(deal.dealRole);
 
   const handleSimObjection = (obj: ObjectionEntry) => {
@@ -3700,7 +3813,92 @@ function ExtraScreens({
 
       <div className={screenClass("invoice")}>
         <div className="screen-pad">
-          <InvoicePreview />
+          <div className="card" style={{ marginBottom: 14 }}>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>Invoice editor</div>
+            <p className="muted small" style={{ margin: "0 0 14px" }}>
+              These fields feed the invoice preview below. Line items come from the current deal estimate.
+            </p>
+            <div className="field">
+              <label>Invoice number</label>
+              <input
+                value={invoiceDraft.invoiceNumber}
+                onChange={(e) => setInvoiceDraft((d) => ({ ...d, invoiceNumber: e.target.value }))}
+              />
+            </div>
+            <div className="field">
+              <label>Billed to</label>
+              <input
+                value={invoiceDraft.billedToName || deal.client}
+                onChange={(e) => setInvoiceDraft((d) => ({ ...d, billedToName: e.target.value }))}
+                placeholder="Client or company name"
+              />
+            </div>
+            <div className="row">
+              <div className="field">
+                <label>Contact</label>
+                <input
+                  value={invoiceDraft.billedToContact}
+                  onChange={(e) => setInvoiceDraft((d) => ({ ...d, billedToContact: e.target.value }))}
+                  placeholder="Accounts Payable"
+                />
+              </div>
+              <div className="field">
+                <label>Billing email</label>
+                <input
+                  type="email"
+                  value={invoiceDraft.billedToEmail}
+                  onChange={(e) => setInvoiceDraft((d) => ({ ...d, billedToEmail: e.target.value }))}
+                  placeholder="billing@client.com"
+                />
+              </div>
+            </div>
+            <div className="row">
+              <div className="field">
+                <label>Issued date</label>
+                <input
+                  type="date"
+                  value={invoiceDraft.issuedDate}
+                  onChange={(e) => setInvoiceDraft((d) => ({ ...d, issuedDate: e.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <label>Due date</label>
+                <input
+                  type="date"
+                  value={invoiceDraft.dueDate}
+                  onChange={(e) => setInvoiceDraft((d) => ({ ...d, dueDate: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="row">
+              <div className="field">
+                <label>Terms</label>
+                <input
+                  value={invoiceDraft.terms}
+                  onChange={(e) => setInvoiceDraft((d) => ({ ...d, terms: e.target.value }))}
+                  placeholder="Net 14"
+                />
+              </div>
+              <div className="field">
+                <label>Deposit %</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={invoiceDraft.depositPercent}
+                  onChange={(e) => setInvoiceDraft((d) => ({ ...d, depositPercent: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label>Payment note</label>
+              <textarea
+                value={invoiceDraft.paymentNote}
+                onChange={(e) => setInvoiceDraft((d) => ({ ...d, paymentNote: e.target.value }))}
+              />
+            </div>
+          </div>
+          <InvoicePreview deal={deal} result={result} profile={profile} draft={invoiceDraft} />
           <button type="button" className="btn btn-primary" onClick={() => showToast("Invoice send flow coming soon")}>
             Send
           </button>
