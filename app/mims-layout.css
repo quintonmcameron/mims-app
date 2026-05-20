@@ -1,0 +1,113 @@
+/* Desktop: wide viewport or mouse/trackpad device (Mac/PC). Phone stays vertical. */
+
+@media (hover: hover) and (pointer: fine) {
+  .mims-shell {
+    padding: 0 !important;
+    justify-content: stretch !important;
+    align-items: stretch !important;
+    width: 100% !important;
+  }
+
+  .mims-shell .app {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 100vh !important;
+    max-height: none !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+}
+
+.mims-shell.mims-wide {
+  padding: 0 !important;
+  justify-content: stretch !important;
+  align-items: stretch !important;
+  width: 100% !important;
+}
+
+.mims-shell.mims-wide .app {
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 100vh !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.mims-shell.mims-wide .scroll,
+.mims-shell.mims-wide .screen-pad {
+  padding-left: clamp(24px, 4vw, 48px);
+  padding-right: clamp(24px, 4vw, 48px);
+}
+
+.mims-shell.mims-wide h1 {
+  font-size: 34px;
+}
+
+.mims-shell.mims-wide .deal-form-grid,
+.mims-shell.mims-wide .home-layout,
+.mims-shell.mims-wide .result-layout {
+  max-width: 1120px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+
+.mims-shell.mims-wide .deal-form-grid .field-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 20px;
+}
+
+.mims-shell.mims-wide .deal-form-grid .field-pair .field {
+  margin-bottom: 0;
+}
+
+.mims-shell.mims-wide .deal-form-grid .footprint-grid {
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+.mims-shell.mims-wide .deal-form-grid .deal-days-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px 20px;
+}
+
+.mims-shell.mims-wide .deal-price-sticky {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  border-radius: 14px;
+}
+
+.mims-shell.mims-wide .home-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 20px;
+}
+
+.mims-shell.mims-wide .home-layout .home-hero,
+.mims-shell.mims-wide .home-layout .home-span-full {
+  grid-column: 1 / -1;
+}
+
+.mims-shell.mims-wide .result-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px 24px;
+  align-items: start;
+}
+
+.mims-shell.mims-wide .result-layout .result-span-full {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1200px) {
+  .mims-shell.mims-wide .scroll,
+  .mims-shell.mims-wide .screen-pad {
+    padding-left: max(48px, calc((100vw - 1120px) / 2));
+    padding-right: max(48px, calc((100vw - 1120px) / 2));
+  }
+}
