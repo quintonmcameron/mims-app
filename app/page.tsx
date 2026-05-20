@@ -1145,9 +1145,15 @@ const POPULAR_ROLES = ["Director of Photography","Videographer","Editor","Direct
 function RoleSearchInput({
   value,
   onChange,
+  placeholder,
+  allowClear,
+  excludeRole,
 }: {
   value: string;
   onChange: (role: string) => void;
+  placeholder?: string;
+  allowClear?: boolean;
+  excludeRole?: string;
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -1155,9 +1161,12 @@ function RoleSearchInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const displayValue = open ? query : query || value;
 
+  const rolePool = excludeRole ? NOVA_ROLES.filter((r) => r !== excludeRole) : NOVA_ROLES;
+  const popularPool = excludeRole ? POPULAR_ROLES.filter((r) => r !== excludeRole) : POPULAR_ROLES;
+
   const filtered = query.trim()
-    ? NOVA_ROLES.filter((r) => r.toLowerCase().includes(query.toLowerCase())).slice(0, 12)
-    : POPULAR_ROLES;
+    ? rolePool.filter((r) => r.toLowerCase().includes(query.toLowerCase())).slice(0, 12)
+    : popularPool;
 
   useEffect(() => {
     function outside(e: MouseEvent) {
@@ -1188,7 +1197,10 @@ function RoleSearchInput({
         <input
           ref={inputRef}
           type="text"
-          placeholder={value ? "Search to change position…" : "Search 200+ positions… e.g. Director of Photography"}
+          placeholder={
+            placeholder ??
+            (value ? "Search to change position…" : "Search 200+ positions… e.g. Director of Photography")
+          }
           value={displayValue}
           autoComplete="off"
           onFocus={() => setOpen(true)}
@@ -1217,7 +1229,25 @@ function RoleSearchInput({
           maxHeight: 224,
           boxShadow: "0 16px 40px rgba(0,0,0,0.4)",
         }}>
-          {!query.trim() && (
+          {allowClear && value && (
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); select(""); }}
+              style={{
+                display: "block", width: "100%", textAlign: "left",
+                padding: "11px 16px",
+                background: "transparent",
+                border: "none",
+                borderBottom: "1px solid var(--border)",
+                color: "var(--text-3)",
+                fontSize: 14, cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              No additional role
+            </button>
+          )}
+          {!query.trim() && filtered.length > 0 && (
             <div style={{ padding: "10px 16px 4px", fontSize: 11, color: "var(--text-3)", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>
               Popular
             </div>
@@ -3029,22 +3059,18 @@ function ExtraScreens({
 
               <div className="field">
                 <label>Additional role (optional)</label>
-                <select
+                <RoleSearchInput
                   value={(deal.additionalRoles ?? [])[0] ?? ""}
-                  onChange={(e) =>
+                  onChange={(v) =>
                     setDeal((d) => ({
                       ...d,
-                      additionalRoles: e.target.value ? [e.target.value] : [],
+                      additionalRoles: v ? [v] : [],
                     }))
                   }
-                >
-                  <option value="">No additional role</option>
-                  {ADDITIONAL_ROLE_OPTIONS.map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.label}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Search another position… e.g. Editor, Director"
+                  allowClear
+                  excludeRole={deal.dealRole}
+                />
                 <p className="helper">
                   Bill each extra role at its own day rate. Production roles (Director, DP, etc.) charge per shoot day.
                   Post roles (Editor, Colorist, etc.) charge per edit day.
