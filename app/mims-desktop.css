@@ -1,0 +1,98 @@
+/* Wide layout for desktop browser & installed PWA (phone call + fill on computer). */
+
+@media (min-width: 900px) {
+  .mims-shell {
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .mims-shell .app {
+    width: 100%;
+    max-width: none;
+    min-height: 100vh;
+    max-height: none;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+  }
+
+  .mims-shell .scroll,
+  .mims-shell .screen-pad {
+    padding-left: clamp(24px, 4vw, 48px);
+    padding-right: clamp(24px, 4vw, 48px);
+  }
+
+  .mims-shell h1 {
+    font-size: 34px;
+  }
+
+  .mims-shell .deal-form-grid,
+  .mims-shell .home-layout,
+  .mims-shell .result-layout {
+    max-width: 1120px;
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+  }
+
+  /* New deal: two columns for paired controls */
+  .mims-shell .deal-form-grid .field-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 20px;
+  }
+
+  .mims-shell .deal-form-grid .field-pair .field {
+    margin-bottom: 0;
+  }
+
+  .mims-shell .deal-form-grid .footprint-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+
+  .mims-shell .deal-form-grid .deal-days-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px 20px;
+  }
+
+  .mims-shell .deal-price-sticky {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    border-radius: 14px;
+  }
+
+  /* Home: hero full width; cards in two columns */
+  .mims-shell .home-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 20px;
+  }
+
+  .mims-shell .home-layout .home-hero,
+  .mims-shell .home-layout .home-span-full {
+    grid-column: 1 / -1;
+  }
+
+  /* Deal result: summary + crew split side by side when space allows */
+  .mims-shell .result-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 20px 24px;
+    align-items: start;
+  }
+
+  .mims-shell .result-layout .result-span-full {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1200px) {
+  .mims-shell .scroll,
+  .mims-shell .screen-pad {
+    padding-left: max(48px, calc((100vw - 1120px) / 2));
+    padding-right: max(48px, calc((100vw - 1120px) / 2));
+  }
+}

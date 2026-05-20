@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { PwaSetup } from "./install-mims";
 import "./globals.css";
+import "./mims-desktop.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -44,6 +46,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
+        <PwaSetup />
         {children}
         <Analytics />
       </body>

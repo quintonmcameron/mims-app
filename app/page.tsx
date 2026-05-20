@@ -1,5 +1,6 @@
 "use client";
 
+import { InstallMimsBanner } from "./install-mims";
 import {
   useCallback,
   useEffect,
@@ -3229,7 +3230,7 @@ function ExtraScreens({
             ] as (false | { l: string; bg: string; bd: string; c: string })[]).filter((p): p is { l: string; bg: string; bd: string; c: string } => !!p);
 
             return (
-              <div style={{
+              <div className="deal-price-sticky" style={{
                 position: "sticky",
                 top: 0,
                 zIndex: 15,
@@ -3307,7 +3308,7 @@ function ExtraScreens({
             <div style={{ width: `${dealStep * 33.33}%` }} />
           </div>
           {dealStep === 1 && (
-            <>
+            <div className="deal-form-grid">
               <h2>Who is the client?</h2>
               <p className="muted small" style={{ margin: "6px 0 16px" }}>
                 MIMS will research them in the background.
@@ -3334,7 +3335,7 @@ function ExtraScreens({
                 <p className="helper">
                   Audience and social presence are directional signals only, not verified budget facts. Use them alongside the client&apos;s business model, scope, and actual budget conversation.
                 </p>
-                <div style={{ display: "grid", gap: 10 }}>
+                <div className="footprint-grid" style={{ display: "grid", gap: 10 }}>
                   <select
                     value={deal.publicAudience}
                     onChange={(e) => setDeal((d) => ({ ...d, publicAudience: e.target.value }))}
@@ -3373,10 +3374,10 @@ function ExtraScreens({
               <button type="button" className="btn btn-primary" onClick={dealNext}>
                 Continue
               </button>
-            </>
+            </div>
           )}
           {dealStep === 2 && (
-            <>
+            <div className="deal-form-grid">
               <h2>What is the work?</h2>
 
               <div className="field" style={{ marginBottom: 18 }}>
@@ -3432,7 +3433,7 @@ function ExtraScreens({
                 />
               </div>
 
-              <div style={{ marginTop: 18, marginBottom: 14 }}>
+              <div className="deal-days-row" style={{ marginTop: 18, marginBottom: 14 }}>
                 {dayMode === "dual" && (
                   <div className="row">
                     <SpinCounter
@@ -3475,9 +3476,15 @@ function ExtraScreens({
                 )}
               </div>
 
-              <div className="field">
-                <label>Deadline tightness</label>
-                <Seg options={RUSH_OPTIONS} value={deal.rush} onChange={(v) => setDeal((d) => ({ ...d, rush: v }))} />
+              <div className="field-pair">
+                <div className="field">
+                  <label>Deadline tightness</label>
+                  <Seg options={RUSH_OPTIONS} value={deal.rush} onChange={(v) => setDeal((d) => ({ ...d, rush: v }))} />
+                </div>
+                <div className="field">
+                  <label>Usage rights</label>
+                  <Seg options={USAGE_OPTIONS} value={deal.usage} onChange={(v) => setDeal((d) => ({ ...d, usage: v }))} />
+                </div>
               </div>
 
               <div className="field">
@@ -3607,11 +3614,6 @@ function ExtraScreens({
                     )}
                   </div>
                 )}
-              </div>
-
-              <div className="field">
-                <label>Usage rights</label>
-                <Seg options={USAGE_OPTIONS} value={deal.usage} onChange={(v) => setDeal((d) => ({ ...d, usage: v }))} />
               </div>
 
               {/* Equipment & Kit Fees */}
@@ -3796,10 +3798,10 @@ function ExtraScreens({
                   Continue
                 </button>
               </div>
-            </>
+            </div>
           )}
           {dealStep === 3 && (
-            <>
+            <div className="deal-form-grid">
               <h2>Ask them this</h2>
               <div className="card" style={{ background: "var(--grad-soft)", borderColor: "rgba(232,197,122,0.3)" }}>
                 <p style={{ margin: 0, fontSize: 14 }}>
@@ -3825,22 +3827,23 @@ function ExtraScreens({
                 </div>
               </div>
 
-              <div className="field">
-                <label>Company size</label>
-                <ChipGroup
-                  options={COMPANY_SIZE_OPTIONS}
-                  value={intelCompanySize}
-                  onChange={(v) => setIntelCompanySize(v as string)}
-                />
-              </div>
-
-              <div className="field">
-                <label>Expected annual revenue</label>
-                <ChipGroup
-                  options={ANNUAL_REVENUE_OPTIONS}
-                  value={intelAnnualRevenue}
-                  onChange={(v) => setIntelAnnualRevenue(v as string)}
-                />
+              <div className="field-pair">
+                <div className="field">
+                  <label>Company size</label>
+                  <ChipGroup
+                    options={COMPANY_SIZE_OPTIONS}
+                    value={intelCompanySize}
+                    onChange={(v) => setIntelCompanySize(v as string)}
+                  />
+                </div>
+                <div className="field">
+                  <label>Expected annual revenue</label>
+                  <ChipGroup
+                    options={ANNUAL_REVENUE_OPTIONS}
+                    value={intelAnnualRevenue}
+                    onChange={(v) => setIntelAnnualRevenue(v as string)}
+                  />
+                </div>
               </div>
 
               <div className="field">
@@ -3853,17 +3856,19 @@ function ExtraScreens({
                 <div className="helper">Customer LTV unlocks break-even analysis.</div>
               </div>
 
-              <div className="field">
-                <label>Decision maker on the call?</label>
-                <Seg options={DM_OPTIONS} value={deal.dm} onChange={(v) => setDeal((d) => ({ ...d, dm: v }))} />
-              </div>
-              <div className="field">
-                <label>Their budget stance</label>
-                <Seg
-                  options={BUDGET_OPTIONS}
-                  value={deal.budgetStance}
-                  onChange={(v) => setDeal((d) => ({ ...d, budgetStance: v }))}
-                />
+              <div className="field-pair">
+                <div className="field">
+                  <label>Decision maker on the call?</label>
+                  <Seg options={DM_OPTIONS} value={deal.dm} onChange={(v) => setDeal((d) => ({ ...d, dm: v }))} />
+                </div>
+                <div className="field">
+                  <label>Their budget stance</label>
+                  <Seg
+                    options={BUDGET_OPTIONS}
+                    value={deal.budgetStance}
+                    onChange={(v) => setDeal((d) => ({ ...d, budgetStance: v }))}
+                  />
+                </div>
               </div>
               <div className="field">
                 <label>Their stated budget (if any)</label>
@@ -3877,7 +3882,7 @@ function ExtraScreens({
                   Run analysis
                 </button>
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
@@ -5181,7 +5186,8 @@ export default function Page() {
             </div>
           </div>
           <div className="scroll">
-            <div style={{ marginBottom: 20 }}>
+            <div className="home-layout">
+            <div className="home-hero" style={{ marginBottom: 20 }}>
               <div className="eyebrow" style={{ marginBottom: 4 }}>
                 {homeFirst ? `Hello ${homeFirst}` : "Welcome"}
               </div>
@@ -5222,7 +5228,9 @@ export default function Page() {
               </div>
             </button>
 
-            <div style={{ marginTop: 28 }}>
+            <InstallMimsBanner />
+
+            <div className="home-span-full" style={{ marginTop: 28 }}>
               <div className="card-row" style={{ marginBottom: 12 }}>
                 <h3>Active deals</h3>
                 <button type="button" className="badge" onClick={() => showToast("Saved deals coming soon")}>
@@ -5265,8 +5273,9 @@ export default function Page() {
                 </button>
               </div>
             </div>
+            </div>
 
-            <p style={{ marginTop: 28, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.04)", fontSize: 11, color: "var(--text-3)", opacity: 0.72, lineHeight: 1.65, textAlign: "center", marginBottom: 0 }}>
+            <p className="home-span-full" style={{ marginTop: 28, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.04)", fontSize: 11, color: "var(--text-3)", opacity: 0.72, lineHeight: 1.65, textAlign: "center", marginBottom: 0 }}>
               Disclaimer: MIMS provides educational pricing and deal-prep estimates based on the information entered by the user. Results are not legal, financial, tax, union, guild, accounting, or contract advice, and they are not a guarantee of what any client will accept. Review your own agreements, confirm current market or union requirements when relevant, and use your judgment before sending any quote, invoice, or scope. By using MIMS, you agree to the <a href="/terms" style={{ color: "var(--gold)", textDecoration: "none" }}>Terms</a> and <a href="/privacy" style={{ color: "var(--gold)", textDecoration: "none" }}>Privacy Policy</a>.
             </p>
           </div>
