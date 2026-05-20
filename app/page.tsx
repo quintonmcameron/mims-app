@@ -2092,6 +2092,34 @@ type InvoiceDraft = {
   paymentNote: string;
 };
 
+type SowLineItem = {
+  id: string;
+  description: string;
+  amount: number;
+};
+
+type SowRoleRow = {
+  id: string;
+  label: string;
+  note: string;
+};
+
+type SowDraft = {
+  creator: string;
+  client: string;
+  version: string;
+  docDate: string;
+  projectDescription: string;
+  roles: SowRoleRow[];
+  lineItems: SowLineItem[];
+  usageRights: string;
+  revisions: string;
+  total: string;
+  depositPercent: string;
+  paymentSchedule: string;
+  cancellation: string;
+};
+
 type InvoiceLine = {
   item: string;
   qty: string;
@@ -2331,16 +2359,133 @@ function InvoicePreview({ deal, result, profile, draft }: { deal: Deal; result: 
   );
 }
 
-function SowPreview({ deal, result, profile }: { deal: Deal; result: Recommendation | null; profile: Profile }) {
-  const client = deal.client || "Client";
-  const creator = profile.name || "Your Studio";
+function buildSowLineItems(deal: Deal, result: Recommendation | null, profile: Profile): SowLineItem[] {
   const primaryRole = deal.dealRole || profile.trade || "Creative";
-  const total = result?.target ?? 0;
-  const deposit = Math.round((total * 0.5) / 50) * 50;
-  const usageLabel = { organic: "Organic social & owned channels, 12 months", paid: "Paid media & digital distribution, 12 months", broadcast: "Broadcast, OOH & paid media, 12 months" }[deal.usage] ?? "Organic social & owned channels, 12 months";
-  const usageExt = deal.usage === "paid" ? "+$2,400 broadcast extension" : deal.usage === "broadcast" ? "+$4,200 broadcast extension" : "";
   const selectedServices = SCOPE_SERVICE_OPTIONS.filter((s) => (deal.scopeServices ?? []).includes(s.id));
   const cs = result?.crewSplit;
+  const lines: SowLineItem[] = [];
+  const push = (description: string, amount: number) => {
+    if (amount <= 0) return;
+    lines.push({ id: `${description}-${amount}-${lines.length}`, description, amount });
+  };
+
+  if (!cs) return lines;
+
+  if (cs.shootDays > 0 && cs.productionSubtotal > 0) {
+    push(
+      `${primaryRole} · production / shoot (${cs.shootDays} day${cs.shootDays !== 1 ? "s" : ""})`,
+      cs.productionSubtotal,
+    );
+  }
+  cs.additionalRoleLines
+    .filter((line) => line.phase === "shoot")
+    .forEach((line) => {
+      push(
+        `${line.role} · production / shoot (${line.days} day${line.days !== 1 ? "s" : ""})`,
+        line.subtotal,
+      );
+    });
+  if (cs.prePro > 0) push("Pre-production & prep", cs.prePro);
+  if (cs.editDays > 0 && cs.postSubtotal > 0) {
+    push(
+      `${primaryRole} · post-production / edit (${cs.editDays} day${cs.editDays !== 1 ? "s" : ""})`,
+      cs.postSubtotal,
+    );
+  }
+  cs.additionalRoleLines
+    .filter((line) => line.phase === "post")
+    .forEach((line) => {
+      push(
+        `${line.role} · post-production / edit (${line.days} day${line.days !== 1 ? "s" : ""})`,
+        line.subtotal,
+      );
+    });
+  selectedServices.forEach((svc) => {
+    const lineAmt = Math.round((cs.postSubtotal + cs.productionSubtotal) * svc.mult);
+    push(svc.label, lineAmt);
+  });
+  if (cs.usageLicense > 0) push("Usage & licensing rights", cs.usageLicense);
+  cs.additionalCrew.forEach((crew) => {
+    push(
+      `Additional crew · ${crew.label} (${crew.qty} × ${crew.days} day${crew.days !== 1 ? "s" : ""})`,
+      crew.total,
+    );
+  });
+  if (cs.mediaStorageTotal > 0) push(cs.mediaStorageLabel, cs.mediaStorageTotal);
+  if (cs.ditFeeTotal > 0) {
+    push(
+      `DIT / on-set data management (${cs.ditDays} day${cs.ditDays !== 1 ? "s" : ""})`,
+      cs.ditFeeTotal,
+    );
+  }
+  if (cs.kitFeeTotal > 0) push("Equipment / kit rental", cs.kitFeeTotal);
+  return lines;
+}
+
+function buildSowRoles(deal: Deal, profile: Profile): SowRoleRow[] {
+  const primaryRole = deal.dealRole || profile.trade || "Creative";
+  const roles: SowRoleRow[] = [
+    { id: "primary", label: primaryRole, note: "Primary" },
+  ];
+  (deal.additionalRoles ?? []).forEach((rid) => {
+    const rl = ADDITIONAL_ROLE_OPTIONS.find((r) => r.id === rid);
+    if (rl) roles.push({ id: rid, label: rl.label, note: "Additional role" });
+  });
+  return roles;
+}
+
+function buildDefaultSowDraft(deal: Deal, result: Recommendation | null, profile: Profile): SowDraft {
+  const client = deal.client || "Client";
+  const creator = profile.name || "Your Studio";
+  const total = result?.target ?? 0;
+  const depositPercent = 50;
+  const deposit = Math.round((total * (depositPercent / 100)) / 50) * 50;
+  const usageLabel =
+    {
+      organic: "Organic social & owned channels, 12 months",
+      paid: "Paid media & digital distribution, 12 months",
+      broadcast: "Broadcast, OOH & paid media, 12 months",
+    }[deal.usage] ?? "Organic social & owned channels, 12 months";
+  const usageExt =
+    deal.usage === "paid"
+      ? "+$2,400 broadcast extension"
+      : deal.usage === "broadcast"
+        ? "+$4,200 broadcast extension"
+        : "";
+  const projectDescription = `${deal.project ? `${deal.project} production` : "Creative production"} for ${client}.${deal.scopeNotes ? ` ${deal.scopeNotes}` : ""}`;
+  const today = new Date().toISOString().slice(0, 10);
+
+  return {
+    creator,
+    client,
+    version: "1.0",
+    docDate: today,
+    projectDescription,
+    roles: buildSowRoles(deal, profile),
+    lineItems: buildSowLineItems(deal, result, profile),
+    usageRights: `${usageLabel}.${usageExt ? ` ${usageExt}.` : ""}`,
+    revisions:
+      "Two rounds included on primary deliverables. Additional rounds: $250 each. Major creative pivots after picture lock are repriced.",
+    total: total > 0 ? String(total) : "",
+    depositPercent: String(depositPercent),
+    paymentSchedule:
+      total > 0
+        ? `$${fmt(deposit)} on signing · $${fmt(total - deposit)} on final delivery`
+        : "50% on signing · 50% on final delivery",
+    cancellation:
+      "Kill fee of 50% if cancelled after pre-production begins. Deposit is non-refundable. Force majeure clause applies.",
+  };
+}
+
+function SowPreview({ draft }: { draft: SowDraft }) {
+  const total = parseFloat(draft.total.replace(/,/g, "")) || 0;
+  const docDate = draft.docDate
+    ? new Date(`${draft.docDate}T00:00:00`).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
   return (
     <div className="doc-preview">
@@ -2348,158 +2493,81 @@ function SowPreview({ deal, result, profile }: { deal: Deal; result: Recommendat
         <div>
           <h2>SCOPE OF WORK</h2>
           <div className="label-sm" style={{ marginTop: 4 }}>
-            {creator} × {client}
+            {draft.creator || "Your Studio"} × {draft.client || "Client"}
           </div>
         </div>
         <div style={{ textAlign: "right", fontSize: 11, color: "#6F6F6F" }}>
-          v1.0 · {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+          v{draft.version || "1.0"} · {docDate}
         </div>
       </div>
 
       <h3 style={{ fontSize: 14, marginBottom: 4 }}>Project</h3>
-      <p style={{ fontSize: 12, color: "#444", margin: "0 0 14px" }}>
-        {deal.project ? `${deal.project} production` : "Creative production"} for {client}.
-        {deal.scopeNotes ? ` ${deal.scopeNotes}` : ""}
+      <p style={{ fontSize: 12, color: "#444", margin: "0 0 14px", whiteSpace: "pre-wrap" }}>
+        {draft.projectDescription || "—"}
       </p>
 
-      <h3 style={{ fontSize: 14, marginBottom: 6 }}>Positions & Roles</h3>
-      <table>
-        <tbody>
-          <tr>
-            <td><strong>{primaryRole}</strong></td>
-            <td style={{ textAlign: "right", color: "#444" }}>Primary</td>
-          </tr>
-          {(deal.additionalRoles ?? []).map((rid) => {
-            const rl = ADDITIONAL_ROLE_OPTIONS.find((r) => r.id === rid);
-            return rl ? (
-              <tr key={rid}>
-                <td>{rl.label}</td>
-                <td style={{ textAlign: "right", color: "#444" }}>Additional role</td>
-              </tr>
-            ) : null;
-          })}
-        </tbody>
-      </table>
+      {draft.roles.length > 0 && (
+        <>
+          <h3 style={{ fontSize: 14, marginBottom: 6 }}>Positions & Roles</h3>
+          <table>
+            <tbody>
+              {draft.roles.map((role) => (
+                <tr key={role.id}>
+                  <td>
+                    <strong>{role.label}</strong>
+                  </td>
+                  <td style={{ textAlign: "right", color: "#444" }}>{role.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
 
-      <h3 style={{ fontSize: 14, margin: "14px 0 6px" }}>Line Items</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Service</th>
-            <th style={{ textAlign: "right" }}>Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {cs && cs.shootDays > 0 && cs.productionSubtotal > 0 && (
-            <tr>
-              <td>
-                {primaryRole} · production / shoot ({cs.shootDays} day{cs.shootDays !== 1 ? "s" : ""})
-              </td>
-              <td style={{ textAlign: "right" }}>${fmt(cs.productionSubtotal)}</td>
-            </tr>
-          )}
-          {cs?.additionalRoleLines
-            .filter((line) => line.phase === "shoot")
-            .map((line) => (
-              <tr key={`${line.role}-shoot`}>
-                <td>
-                  {line.role} · production / shoot ({line.days} day{line.days !== 1 ? "s" : ""})
-                </td>
-                <td style={{ textAlign: "right" }}>${fmt(line.subtotal)}</td>
+      {draft.lineItems.length > 0 && (
+        <>
+          <h3 style={{ fontSize: 14, margin: "14px 0 6px" }}>Line Items</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Service</th>
+                <th style={{ textAlign: "right" }}>Amount</th>
               </tr>
-            ))}
-          {cs && cs.prePro > 0 && (
-            <tr>
-              <td>Pre-production & prep</td>
-              <td style={{ textAlign: "right" }}>${fmt(cs.prePro)}</td>
-            </tr>
-          )}
-          {cs && cs.editDays > 0 && cs.postSubtotal > 0 && (
-            <tr>
-              <td>
-                {primaryRole} · post-production / edit ({cs.editDays} day{cs.editDays !== 1 ? "s" : ""})
-              </td>
-              <td style={{ textAlign: "right" }}>${fmt(cs.postSubtotal)}</td>
-            </tr>
-          )}
-          {cs?.additionalRoleLines
-            .filter((line) => line.phase === "post")
-            .map((line) => (
-              <tr key={`${line.role}-post`}>
-                <td>
-                  {line.role} · post-production / edit ({line.days} day{line.days !== 1 ? "s" : ""})
-                </td>
-                <td style={{ textAlign: "right" }}>${fmt(line.subtotal)}</td>
-              </tr>
-            ))}
-          {selectedServices.map((svc) => {
-            const lineAmt = cs ? Math.round((cs.postSubtotal + cs.productionSubtotal) * svc.mult) : 0;
-            return (
-              <tr key={svc.id}>
-                <td>{svc.label}</td>
-                <td style={{ textAlign: "right" }}>${fmt(lineAmt)}</td>
-              </tr>
-            );
-          })}
-          {cs && cs.usageLicense > 0 && (
-            <tr>
-              <td>Usage & licensing rights</td>
-              <td style={{ textAlign: "right" }}>${fmt(cs.usageLicense)}</td>
-            </tr>
-          )}
-          {cs?.additionalCrew.map((crew) => (
-            <tr key={crew.id}>
-              <td>
-                Additional crew · {crew.label} ({crew.qty} × {crew.days} day{crew.days !== 1 ? "s" : ""})
-              </td>
-              <td style={{ textAlign: "right" }}>${fmt(crew.total)}</td>
-            </tr>
-          ))}
-          {cs && cs.mediaStorageTotal > 0 && (
-            <tr>
-              <td>{cs.mediaStorageLabel}</td>
-              <td style={{ textAlign: "right" }}>${fmt(cs.mediaStorageTotal)}</td>
-            </tr>
-          )}
-          {cs && cs.ditFeeTotal > 0 && (
-            <tr>
-              <td>
-                DIT / on-set data management ({cs.ditDays} day{cs.ditDays !== 1 ? "s" : ""})
-              </td>
-              <td style={{ textAlign: "right" }}>${fmt(cs.ditFeeTotal)}</td>
-            </tr>
-          )}
-          {cs && cs.kitFeeTotal > 0 && (
-            <tr>
-              <td>Equipment / kit rental</td>
-              <td style={{ textAlign: "right" }}>${fmt(cs.kitFeeTotal)}</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+            </thead>
+            <tbody>
+              {draft.lineItems.map((line) => (
+                <tr key={line.id}>
+                  <td>{line.description}</td>
+                  <td style={{ textAlign: "right" }}>${fmt(Math.round(line.amount))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
 
       <h3 style={{ fontSize: 14, margin: "14px 0 6px" }}>Usage rights</h3>
-      <p style={{ fontSize: 12, color: "#444", margin: "0 0 10px" }}>
-        {usageLabel}.{usageExt ? ` ${usageExt}.` : ""}
+      <p style={{ fontSize: 12, color: "#444", margin: "0 0 10px", whiteSpace: "pre-wrap" }}>
+        {draft.usageRights || "—"}
       </p>
 
       <h3 style={{ fontSize: 14, margin: "14px 0 6px" }}>Revisions</h3>
-      <p style={{ fontSize: 12, color: "#444", margin: "0 0 10px" }}>
-        Two rounds included on primary deliverables. Additional rounds: $250 each. Major creative pivots after picture lock are repriced.
+      <p style={{ fontSize: 12, color: "#444", margin: "0 0 10px", whiteSpace: "pre-wrap" }}>
+        {draft.revisions || "—"}
       </p>
 
       <h3 style={{ fontSize: 14, margin: "14px 0 6px" }}>Investment</h3>
       <div className="total" style={{ borderColor: "#1A1A1F" }}>
         <span>Total</span>
-        <span>{total > 0 ? `$${fmt(total)}` : "—"}</span>
+        <span>{total > 0 ? `$${fmt(Math.round(total))}` : "—"}</span>
       </div>
-      <div style={{ fontSize: 11, color: "#888", marginTop: 6 }}>
-        {total > 0 ? `$${fmt(deposit)} on signing · $${fmt(total - deposit)} on final delivery` : "50% on signing · 50% on final delivery"}
+      <div style={{ fontSize: 11, color: "#888", marginTop: 6, whiteSpace: "pre-wrap" }}>
+        {draft.paymentSchedule || "—"}
       </div>
 
       <h3 style={{ fontSize: 14, margin: "14px 0 6px" }}>Cancellation</h3>
-      <p style={{ fontSize: 12, color: "#444", margin: 0 }}>
-        Kill fee of 50% if cancelled after pre-production begins. Deposit is non-refundable. Force majeure clause applies.
+      <p style={{ fontSize: 12, color: "#444", margin: 0, whiteSpace: "pre-wrap" }}>
+        {draft.cancellation || "—"}
       </p>
     </div>
   );
@@ -3162,6 +3230,11 @@ function ExtraScreens({
     depositPercent: "50",
     paymentNote: "Payment via ACH or wire. Late fees of 1.5%/mo accrue after 30 days. Project license activates on final payment.",
   });
+  const [sowDraft, setSowDraft] = useState<SowDraft>(() => buildDefaultSowDraft(deal, result, profile));
+  const refreshSowFromDeal = useCallback(() => {
+    setSowDraft(buildDefaultSowDraft(deal, result, profile));
+    showToast("SOW refreshed from deal estimate");
+  }, [deal, result, profile, showToast]);
   useEffect(() => {
     const issued = new Date();
     const due = new Date(issued);
@@ -4493,7 +4566,222 @@ function ExtraScreens({
 
       <div className={screenClass("sow")}>
         <div className="screen-pad">
-          <SowPreview deal={deal} result={result} profile={profile} />
+          <div className="card" style={{ marginBottom: 14 }}>
+            <div className="card-row" style={{ marginBottom: 8 }}>
+              <div className="eyebrow">Scope of work editor</div>
+              <button type="button" className="badge" onClick={refreshSowFromDeal}>
+                Refresh from deal
+              </button>
+            </div>
+            <p className="muted small" style={{ margin: "0 0 14px" }}>
+              Edit any section below. The preview updates as you type. Use refresh to pull new line items from your current estimate.
+            </p>
+            <div className="row">
+              <div className="field">
+                <label>Your name / studio</label>
+                <input
+                  value={sowDraft.creator}
+                  onChange={(e) => setSowDraft((d) => ({ ...d, creator: e.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <label>Client</label>
+                <input
+                  value={sowDraft.client}
+                  onChange={(e) => setSowDraft((d) => ({ ...d, client: e.target.value }))}
+                  placeholder={deal.client || "Client name"}
+                />
+              </div>
+            </div>
+            <div className="row">
+              <div className="field">
+                <label>Version</label>
+                <input
+                  value={sowDraft.version}
+                  onChange={(e) => setSowDraft((d) => ({ ...d, version: e.target.value }))}
+                  placeholder="1.0"
+                />
+              </div>
+              <div className="field">
+                <label>Document date</label>
+                <input
+                  type="date"
+                  value={sowDraft.docDate}
+                  onChange={(e) => setSowDraft((d) => ({ ...d, docDate: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="field">
+              <label>Project description</label>
+              <textarea
+                value={sowDraft.projectDescription}
+                onChange={(e) => setSowDraft((d) => ({ ...d, projectDescription: e.target.value }))}
+                rows={3}
+              />
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <div className="label-sm" style={{ marginBottom: 8 }}>Positions & roles</div>
+              {sowDraft.roles.map((role, index) => (
+                <div key={role.id} className="row" style={{ marginBottom: 8 }}>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <input
+                      value={role.label}
+                      onChange={(e) =>
+                        setSowDraft((d) => ({
+                          ...d,
+                          roles: d.roles.map((r, i) => (i === index ? { ...r, label: e.target.value } : r)),
+                        }))
+                      }
+                      placeholder="Role name"
+                    />
+                  </div>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <input
+                      value={role.note}
+                      onChange={(e) =>
+                        setSowDraft((d) => ({
+                          ...d,
+                          roles: d.roles.map((r, i) => (i === index ? { ...r, note: e.target.value } : r)),
+                        }))
+                      }
+                      placeholder="Primary / Additional"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <div className="card-row" style={{ marginBottom: 8 }}>
+                <div className="label-sm">Line items</div>
+                <button
+                  type="button"
+                  className="badge"
+                  onClick={() =>
+                    setSowDraft((d) => ({
+                      ...d,
+                      lineItems: [
+                        ...d.lineItems,
+                        { id: `line-${Date.now()}`, description: "", amount: 0 },
+                      ],
+                    }))
+                  }
+                >
+                  + Add line
+                </button>
+              </div>
+              {sowDraft.lineItems.map((line, index) => (
+                <div key={line.id} className="row" style={{ marginBottom: 8, alignItems: "flex-end" }}>
+                  <div className="field" style={{ marginBottom: 0, flex: 2 }}>
+                    <input
+                      value={line.description}
+                      onChange={(e) =>
+                        setSowDraft((d) => ({
+                          ...d,
+                          lineItems: d.lineItems.map((l, i) =>
+                            i === index ? { ...l, description: e.target.value } : l,
+                          ),
+                        }))
+                      }
+                      placeholder="Service description"
+                    />
+                  </div>
+                  <div className="field" style={{ marginBottom: 0, flex: 1 }}>
+                    <input
+                      type="number"
+                      min="0"
+                      value={line.amount || ""}
+                      onChange={(e) =>
+                        setSowDraft((d) => ({
+                          ...d,
+                          lineItems: d.lineItems.map((l, i) =>
+                            i === index ? { ...l, amount: parseFloat(e.target.value) || 0 } : l,
+                          ),
+                        }))
+                      }
+                      placeholder="Amount"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    style={{ flexShrink: 0, marginBottom: 0 }}
+                    aria-label="Remove line item"
+                    onClick={() =>
+                      setSowDraft((d) => ({
+                        ...d,
+                        lineItems: d.lineItems.filter((_, i) => i !== index),
+                      }))
+                    }
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {sowDraft.lineItems.length === 0 && (
+                <p className="muted small" style={{ margin: 0 }}>
+                  No line items yet. Refresh from deal or add a line manually.
+                </p>
+              )}
+            </div>
+
+            <div className="field">
+              <label>Usage rights</label>
+              <textarea
+                value={sowDraft.usageRights}
+                onChange={(e) => setSowDraft((d) => ({ ...d, usageRights: e.target.value }))}
+                rows={2}
+              />
+            </div>
+            <div className="field">
+              <label>Revisions</label>
+              <textarea
+                value={sowDraft.revisions}
+                onChange={(e) => setSowDraft((d) => ({ ...d, revisions: e.target.value }))}
+                rows={2}
+              />
+            </div>
+            <div className="row">
+              <div className="field">
+                <label>Total ($)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={sowDraft.total}
+                  onChange={(e) => setSowDraft((d) => ({ ...d, total: e.target.value }))}
+                  placeholder={result?.target ? String(result.target) : "0"}
+                />
+              </div>
+              <div className="field">
+                <label>Deposit %</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={sowDraft.depositPercent}
+                  onChange={(e) => setSowDraft((d) => ({ ...d, depositPercent: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="field">
+              <label>Payment schedule</label>
+              <textarea
+                value={sowDraft.paymentSchedule}
+                onChange={(e) => setSowDraft((d) => ({ ...d, paymentSchedule: e.target.value }))}
+                rows={2}
+              />
+            </div>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label>Cancellation</label>
+              <textarea
+                value={sowDraft.cancellation}
+                onChange={(e) => setSowDraft((d) => ({ ...d, cancellation: e.target.value }))}
+                rows={2}
+              />
+            </div>
+          </div>
+          <SowPreview draft={sowDraft} />
           <button type="button" className="btn btn-primary" onClick={() => showToast("SOW signature flow coming soon")}>
             Send for signature
           </button>
