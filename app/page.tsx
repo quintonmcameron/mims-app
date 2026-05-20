@@ -76,11 +76,16 @@ interface Deal {
   scopeServices: string[];
   dealRole: string;
   additionalRoles: string[];
-  additionalCrew: string[];
+  additionalCrew: AdditionalCrewEntry[];
   kitFee: string;
   kitFeeCustom: string;
   kitFeeLockerItems: string[];
   kitFeeRate: string;
+}
+
+interface AdditionalCrewEntry {
+  role: string;
+  qty: number;
 }
 
 interface AdditionalCrewLine {
@@ -88,6 +93,7 @@ interface AdditionalCrewLine {
   label: string;
   rate: number;
   days: number;
+  qty: number;
   total: number;
   phase: "shoot" | "post" | "project";
 }
@@ -733,24 +739,13 @@ function computeRecommendation(
       : `Gear Locker · ${rateLabel} operator rate · ${kitDays} day${kitDays !== 1 ? "s" : ""}`;
   }
 
-  const additionalCrew = (deal.additionalCrew ?? []).map((crewId) => {
-    const option = ADDITIONAL_CREW_OPTIONS.find((crew) => crew.id === crewId);
-    if (!option) return null;
-    const days =
-      option.phase === "post"
-        ? Math.max(deal.editDays, 1)
-        : option.phase === "shoot"
-          ? Math.max(deal.shootDays, 1)
-          : Math.max(deal.shootDays + deal.editDays, 1);
-    return {
-      id: option.id,
-      label: option.label,
-      rate: option.dayRate,
-      days,
-      total: option.dayRate * days,
-      phase: option.phase,
-    };
-  }).filter((line): line is AdditionalCrewLine => Boolean(line));
+  const additionalCrew = (deal.additionalCrew ?? [])
+    .map((entry) => {
+      const crewRate =
+        getEstimatedBaseDayRate(profile, entry.role, isUnion, matchUnionRates) * multipliers;
+      return buildAdditionalCrewLine(entry, deal, crewRate);
+    })
+    .filter((line): line is AdditionalCrewLine => Boolean(line));
   const additionalCrewTotal = additionalCrew.reduce((sum, line) => sum + line.total, 0);
 
   // Scope services: each selected service multiplies the base labor
@@ -1064,23 +1059,6 @@ const SCOPE_SERVICE_OPTIONS: { id: string; label: string; mult: number }[] = [
   { id: "captions", label: "Captions & subtitles",   mult: 0.04 },
 ];
 
-const ADDITIONAL_CREW_OPTIONS: { id: string; label: string; dayRate: number; phase: "shoot" | "post" | "project" }[] = [
-  { id: "director", label: "Director", dayRate: 1200, phase: "shoot" },
-  { id: "producer", label: "Producer", dayRate: 1250, phase: "project" },
-  { id: "1st-ad", label: "1st AD", dayRate: 900, phase: "shoot" },
-  { id: "dp", label: "Director of Photography", dayRate: 900, phase: "shoot" },
-  { id: "camera-op", label: "Camera Operator", dayRate: 700, phase: "shoot" },
-  { id: "1st-ac", label: "1st AC", dayRate: 650, phase: "shoot" },
-  { id: "gaffer", label: "Gaffer", dayRate: 650, phase: "shoot" },
-  { id: "key-grip", label: "Key Grip", dayRate: 650, phase: "shoot" },
-  { id: "sound-mixer", label: "Sound Mixer", dayRate: 650, phase: "shoot" },
-  { id: "pa", label: "Production Assistant", dayRate: 300, phase: "shoot" },
-  { id: "editor", label: "Editor", dayRate: 850, phase: "post" },
-  { id: "colorist", label: "Colorist", dayRate: 700, phase: "post" },
-  { id: "hmu", label: "Hair & Makeup", dayRate: 800, phase: "shoot" },
-  { id: "stylist", label: "Stylist", dayRate: 700, phase: "shoot" },
-];
-
 type DayMode = "dual" | "production" | "post" | "design";
 
 function getRoleDayMode(role: string): DayMode {
@@ -1123,6 +1101,40 @@ function getRoleDayMode(role: string): DayMode {
   return "production";
 }
 
+function getAdditionalCrewDayCount(mode: DayMode, deal: Deal): number {
+  if (mode === "post" || mode === "design") return Math.max(deal.editDays, 1);
+  if (mode === "dual") return Math.max(deal.shootDays + deal.editDays, 1);
+  return Math.max(deal.shootDays, 1);
+}
+
+function getAdditionalCrewPhase(mode: DayMode): "shoot" | "post" | "project" {
+  if (mode === "post" || mode === "design") return "post";
+  if (mode === "dual") return "project";
+  return "shoot";
+}
+
+function buildAdditionalCrewLine(
+  entry: AdditionalCrewEntry,
+  deal: Deal,
+  dayRate: number,
+): AdditionalCrewLine | null {
+  if (!entry.role) return null;
+  const qty = Math.max(1, Math.min(99, entry.qty || 1));
+  const mode = getRoleDayMode(entry.role);
+  const days = getAdditionalCrewDayCount(mode, deal);
+  const rate = Math.round(dayRate);
+  const total = rate * days * qty;
+  return {
+    id: entry.role,
+    label: qty > 1 ? `${entry.role} × ${qty}` : entry.role,
+    rate,
+    days,
+    qty,
+    total,
+    phase: getAdditionalCrewPhase(mode),
+  };
+}
+
 const NOVA_ROLES = ["1st AC","1st AD","2nd 2nd AC","2nd AC","2nd AD","2nd Unit 1st AC","2nd Unit 1st AD","2nd Unit 2nd AC","2nd Unit 2nd AD","2nd Unit DP","2nd Unit Director","2nd Unit Electric","2nd Unit Gaffer","2nd Unit Grip","3D Artist","3rd AD","4th AD","ADA","AI Artist","Additional Photography","Aerial Cinematographer","Animal Trainer","Animal Wrangler","Animation Supervisor","Animator","Armorer","Art Coordinator","Art Department","Art Director","Art Production Assistant","Art Rigger","Assistant Animator","Assistant Editor","Assistant Electrician","Assistant Lighting Tech","Associate Creative Director","Associate Producer","Associate Production Manager","Audio Engineer","Audio Visual Technician","B Cam 1st AC","B Cam 2nd AC","B Camera Operator","BTS Photographer","BTS Videographer","Best Boy Electric","Best Boy Grip","Boom Operator","Braider","CG Artist","Camera Operator","Casting Assistant","Casting Associate","Casting Director","Chief Lighting Technician","Choreographer","Co-Director","Color Assistant","Color Producer","Colorist","Composer","Compositor","Concept Artist","Content Creator","Copywriter","Costume Assistant","Costume Designer","Crane Operator","Creative Assistant","Creative Director","Creative Producer","Creative Strategist","Cyclo Operator","DIT","DMX Technician","Dancer","Data Manager","Design Assistant","Designer","Digital Designer","Digitech","Dimmer Board Operator","Director","Director of Photography","Director's Assistant","Dolly Grip","Drone Operator","Editor","Electric","Event Producer","Executive Assistant","Executive Producer","Experiential Producer","FPV Drone Pilot","Fabricator","Fashion Assistant","Fashion Designer","Fashion Illustrator","Fashion Intern","Film Loader","Finishing Artist","Fixer","Fixtures Technician","Florist","Focus Puller","Foley Artist","Food Stylist","Gaffer","Garment Production Manager","Gimbal Operator","Graphic Designer","Greensman","Grip","Grip Assistant","Groomer","Hair & Makeup Artist","Hair & Makeup Assistant","Hair Assistant","Hair Stylist","Head Fixtures Technician","Illustrator","Interior Designer","Intern","Intimacy Coordinator","Jib Crane Tech","Jib Operator","Jib Tech","Key Grip","Key Scenic Painter","Layout Artist","Lead Animator","Lead Compositor","Lead Crane Tech","Lead Rigger","Leadman","Lighting Assistant","Lighting Console Programmer","Lighting Designer","Lighting Director","Lighting Tech","Line Producer","Live Editor","Live Show Designer","Location Manager","Location Scout","Lot Best Boy","Makeup Artist","Makeup Assistant","Manicurist","Marketing Coordinator","Marketing Director","Marketing Manager","Motion Designer","Movement Coach","Movement Director","Music Supervisor","Music Supervisor Assistant","Nail Artist","Nail Assistant","Office PA","Omega AR Operator","PA","Packaging Designer","Pattern Maker","Photo Assistant","Photographer","Picture Car Coordinator","Post Producer","Post Production Assistant","Post Production Coordinator","Post Sound Mixer","Post Supervisor","Prep Supervisor","Producer","Product Designer","Production Assistant","Production Coordinator","Production Designer","Production Manager","Production Supervisor","Project Manager","Projection Mapping Specialist","Prop Maker","Prop Master","Prop Stylist","Pyrotechnician","Remote Head Tech","Render Artist","Retoucher","Rig AC","Rigging BBE","Rigging BBG","Rigging Electrician","Rigging Gaffer","Rigging Grip","Rigging Key Grip","SFX Coordinator","SFX Makeup Artist","SFX Supervisor","SFX Technician","Scenic Painter","Script Supervisor","Seamstress","Set Builder","Set Carpenter","Set Decorator","Set Designer","Set Dresser","Set Lighting Technician","Social Media Manager","Social Media Strategist","Sound Designer","Sound Mixer","Spatial Designer","Stage Designer","Steadicam Operator","Storyboard Artist","Streaming Engineer","Stunt Coordinator","Stunt Rigger","Stunt Safety Rigger","Stylist","Stylist Assistant","Supervising Producer","Swing","Switch Board Operator","Tailor","Technical Director","Technocrane Operator","Technocrane Tech","Title Designer","Treatment Designer","Trinity Operator","Truck PA","UI/UX Designer","Underwater Camera Operator","Underwater Grip","Underwater Lighting Tech","Unit Production Manager","Utility Sound Tech","VFX Artist","VFX Supervisor","VTR","Video Growth Engineer","Videographer","Visual Researcher","Web Designer","Web Developer","Writer"];
 
 const ADDITIONAL_ROLE_OPTIONS = NOVA_ROLES.map((role) => ({
@@ -1148,12 +1160,14 @@ function RoleSearchInput({
   placeholder,
   allowClear,
   excludeRole,
+  excludeRoles,
 }: {
   value: string;
   onChange: (role: string) => void;
   placeholder?: string;
   allowClear?: boolean;
   excludeRole?: string;
+  excludeRoles?: string[];
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -1161,8 +1175,9 @@ function RoleSearchInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const displayValue = open ? query : query || value;
 
-  const rolePool = excludeRole ? NOVA_ROLES.filter((r) => r !== excludeRole) : NOVA_ROLES;
-  const popularPool = excludeRole ? POPULAR_ROLES.filter((r) => r !== excludeRole) : POPULAR_ROLES;
+  const excluded = new Set([...(excludeRoles ?? []), ...(excludeRole ? [excludeRole] : [])]);
+  const rolePool = excluded.size ? NOVA_ROLES.filter((r) => !excluded.has(r)) : NOVA_ROLES;
+  const popularPool = excluded.size ? POPULAR_ROLES.filter((r) => !excluded.has(r)) : POPULAR_ROLES;
 
   const filtered = query.trim()
     ? rolePool.filter((r) => r.toLowerCase().includes(query.toLowerCase())).slice(0, 12)
@@ -1283,6 +1298,156 @@ function RoleSearchInput({
               {role}
             </button>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdditionalCrewPicker({
+  entries,
+  onChange,
+  deal,
+  profile,
+  isUnion,
+  matchUnionRates,
+}: {
+  entries: AdditionalCrewEntry[];
+  onChange: (entries: AdditionalCrewEntry[]) => void;
+  deal: Deal;
+  profile: Profile;
+  isUnion: boolean;
+  matchUnionRates: boolean;
+}) {
+  const [pickRole, setPickRole] = useState("");
+  const addedRoles = entries.map((e) => e.role);
+
+  const addRole = (role: string) => {
+    if (!role || addedRoles.includes(role)) return;
+    onChange([...entries, { role, qty: 1 }]);
+    setPickRole("");
+  };
+
+  const setQty = (role: string, qty: number) => {
+    onChange(
+      entries.map((e) =>
+        e.role === role ? { ...e, qty: Math.max(1, Math.min(99, qty)) } : e,
+      ),
+    );
+  };
+
+  const removeRole = (role: string) => {
+    onChange(entries.filter((e) => e.role !== role));
+  };
+
+  const lineEstimate = (entry: AdditionalCrewEntry) => {
+    const rate = getEstimatedBaseDayRate(profile, entry.role, isUnion, matchUnionRates);
+    return buildAdditionalCrewLine(entry, deal, rate)?.total ?? 0;
+  };
+
+  const crewTotal = entries.reduce((sum, entry) => sum + lineEstimate(entry), 0);
+
+  const qtyBtnStyle: CSSProperties = {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    border: "1px solid var(--border)",
+    background: "var(--surface)",
+    color: "var(--text)",
+    fontSize: 16,
+    lineHeight: 1,
+    cursor: "pointer",
+    fontFamily: "inherit",
+  };
+
+  return (
+    <div>
+      <RoleSearchInput
+        value={pickRole}
+        onChange={addRole}
+        placeholder="Search crew to add… e.g. Editor, Grip, Gaffer"
+        excludeRoles={addedRoles}
+      />
+      <p className="helper" style={{ marginTop: 6 }}>
+        Add each role once, then set how many people you need (e.g. 2 Editors, 3 Grips).
+      </p>
+
+      {entries.length > 0 && (
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          {entries.map((entry) => {
+            const mode = getRoleDayMode(entry.role);
+            const days = getAdditionalCrewDayCount(mode, deal);
+            const rate = getEstimatedBaseDayRate(profile, entry.role, isUnion, matchUnionRates);
+            const subtotal = lineEstimate(entry);
+            return (
+              <div
+                key={entry.role}
+                style={{
+                  padding: "12px 12px 10px",
+                  borderRadius: 12,
+                  border: "1px solid rgba(232,197,122,0.22)",
+                  background: "rgba(232,197,122,0.04)",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{entry.role}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-3)" }}>
+                      ${fmt(rate)}/day · {days} day{days !== 1 ? "s" : ""} each
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeRole(entry.role)}
+                    aria-label={`Remove ${entry.role}`}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--text-3)",
+                      cursor: "pointer",
+                      fontSize: 18,
+                      lineHeight: 1,
+                      padding: 4,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11, color: "var(--text-3)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                      Qty
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Decrease ${entry.role} count`}
+                      onClick={() => setQty(entry.role, entry.qty - 1)}
+                      disabled={entry.qty <= 1}
+                      style={{ ...qtyBtnStyle, opacity: entry.qty <= 1 ? 0.35 : 1 }}
+                    >
+                      −
+                    </button>
+                    <span style={{ minWidth: 20, textAlign: "center", fontSize: 15, fontWeight: 700 }}>{entry.qty}</span>
+                    <button
+                      type="button"
+                      aria-label={`Increase ${entry.role} count`}
+                      onClick={() => setQty(entry.role, entry.qty + 1)}
+                      disabled={entry.qty >= 99}
+                      style={{ ...qtyBtnStyle, opacity: entry.qty >= 99 ? 0.35 : 1 }}
+                    >
+                      +
+                    </button>
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--gold)" }}>${fmt(subtotal)}</span>
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ padding: "9px 12px", borderRadius: 10, background: "rgba(232,197,122,0.05)", border: "1px solid rgba(232,197,122,0.18)" }}>
+            <div style={{ fontSize: 11, color: "var(--gold)", fontWeight: 700 }}>
+              +${fmt(crewTotal)} estimated crew added
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -1892,9 +2057,10 @@ function buildInvoiceLines(deal: Deal, result: Recommendation | null, profile: P
     if (amount > 0) lines.push({ item: svc.label, qty: "1", rate: amount, amount });
   }
   for (const crew of cs.additionalCrew) {
+    const crewDays = crew.days * crew.qty;
     lines.push({
       item: `Additional crew · ${crew.label}`,
-      qty: String(crew.days),
+      qty: String(crewDays),
       rate: crew.rate,
       amount: crew.total,
     });
@@ -2168,7 +2334,9 @@ function SowPreview({ deal, result, profile }: { deal: Deal; result: Recommendat
           )}
           {cs?.additionalCrew.map((crew) => (
             <tr key={crew.id}>
-              <td>Additional crew · {crew.label} ({crew.days} day{crew.days !== 1 ? "s" : ""})</td>
+              <td>
+                Additional crew · {crew.label} ({crew.qty} × {crew.days} day{crew.days !== 1 ? "s" : ""})
+              </td>
               <td style={{ textAlign: "right" }}>${fmt(crew.total)}</td>
             </tr>
           ))}
@@ -2428,7 +2596,9 @@ function CrewSplitCard({ cs }: { cs: CrewSplit }) {
             <div key={crew.id} style={rowStyle}>
               <div>
                 <div style={lineNameStyle}>{crew.label}</div>
-                <div style={lineSubStyle}>{crew.days} day{crew.days !== 1 ? "s" : ""} × ${fmt(crew.rate)}/day estimated non-union</div>
+                <div style={lineSubStyle}>
+                  {crew.qty} × {crew.days} day{crew.days !== 1 ? "s" : ""} × ${fmt(crew.rate)}/day estimated
+                </div>
               </div>
               <span style={amountStyle}>${fmt(crew.total)}</span>
             </div>
@@ -3145,63 +3315,16 @@ function ExtraScreens({
               <div className="field">
                 <label>Additional crew</label>
                 <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 10 }}>
-                  Optional non-union day-rate estimates for extra crew. Confirm final quotes directly with each crew member.
+                  Optional day-rate estimates for extra crew. Confirm final quotes directly with each crew member.
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  {ADDITIONAL_CREW_OPTIONS.map((crew) => {
-                    const active = (deal.additionalCrew ?? []).includes(crew.id);
-                    const dayCount =
-                      crew.phase === "post"
-                        ? Math.max(deal.editDays, 1)
-                        : crew.phase === "shoot"
-                          ? Math.max(deal.shootDays, 1)
-                          : Math.max(deal.shootDays + deal.editDays, 1);
-                    return (
-                      <button
-                        key={crew.id}
-                        type="button"
-                        onClick={() => setDeal((d) => ({
-                          ...d,
-                          additionalCrew: active
-                            ? (d.additionalCrew ?? []).filter((id) => id !== crew.id)
-                            : [...(d.additionalCrew ?? []), crew.id],
-                        }))}
-                        style={{
-                          padding: "10px 11px",
-                          borderRadius: 12,
-                          border: `1px solid ${active ? "rgba(232,197,122,0.4)" : "var(--border)"}`,
-                          background: active ? "rgba(232,197,122,0.07)" : "var(--surface)",
-                          color: active ? "var(--text)" : "var(--text-2)",
-                          cursor: "pointer",
-                          fontFamily: "inherit",
-                          textAlign: "left",
-                        }}
-                      >
-                        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 3 }}>{crew.label}</div>
-                        <div style={{ fontSize: 11, color: active ? "var(--gold)" : "var(--text-3)" }}>
-                          ${fmt(crew.dayRate)}/day · {dayCount} day{dayCount !== 1 ? "s" : ""}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-                {(deal.additionalCrew ?? []).length > 0 && (
-                  <div style={{ marginTop: 9, padding: "9px 12px", borderRadius: 10, background: "rgba(232,197,122,0.05)", border: "1px solid rgba(232,197,122,0.18)" }}>
-                    <div style={{ fontSize: 11, color: "var(--gold)", fontWeight: 700 }}>
-                      +${fmt((deal.additionalCrew ?? []).reduce((sum, id) => {
-                        const crew = ADDITIONAL_CREW_OPTIONS.find((item) => item.id === id);
-                        if (!crew) return sum;
-                        const dayCount =
-                          crew.phase === "post"
-                            ? Math.max(deal.editDays, 1)
-                            : crew.phase === "shoot"
-                              ? Math.max(deal.shootDays, 1)
-                              : Math.max(deal.shootDays + deal.editDays, 1);
-                        return sum + crew.dayRate * dayCount;
-                      }, 0))} estimated crew added
-                    </div>
-                  </div>
-                )}
+                <AdditionalCrewPicker
+                  entries={deal.additionalCrew ?? []}
+                  onChange={(additionalCrew) => setDeal((d) => ({ ...d, additionalCrew }))}
+                  deal={deal}
+                  profile={profile}
+                  isUnion={isUnion}
+                  matchUnionRates={matchUnionRates}
+                />
               </div>
               <div className="field">
                 <label>Usage rights</label>
