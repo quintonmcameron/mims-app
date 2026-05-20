@@ -81,6 +81,9 @@ interface Deal {
   kitFeeCustom: string;
   kitFeeLockerItems: string[];
   kitFeeRate: string;
+  mediaStorageProvider: string;
+  mediaStorageTier: string;
+  chargeDitFee: boolean;
 }
 
 interface AdditionalCrewEntry {
@@ -130,6 +133,13 @@ interface CrewSplit {
   additionalCrewTotal: number;
   kitFeeTotal: number;
   kitFeeLabel: string;
+  mediaStorageTotal: number;
+  mediaStorageLabel: string;
+  mediaStorageDriveNote: string;
+  mediaStorageAmazonHardware: number;
+  ditFeeTotal: number;
+  ditDays: number;
+  ditDayRate: number;
 }
 
 interface Recommendation {
@@ -205,6 +215,9 @@ const defaultDeal: Deal = {
   kitFeeCustom: "",
   kitFeeLockerItems: [],
   kitFeeRate: "0.05",
+  mediaStorageProvider: "",
+  mediaStorageTier: "",
+  chargeDitFee: false,
 };
 
 function tradeLabel(t: string): string {
@@ -748,6 +761,35 @@ function computeRecommendation(
     .filter((line): line is AdditionalCrewLine => Boolean(line));
   const additionalCrewTotal = additionalCrew.reduce((sum, line) => sum + line.total, 0);
 
+  let mediaStorageTotal = 0;
+  let mediaStorageLabel = "";
+  let mediaStorageDriveNote = "";
+  let mediaStorageAmazonHardware = 0;
+  if (deal.mediaStorageProvider === "you" && deal.mediaStorageTier) {
+    const tier = MEDIA_STORAGE_TIERS.find((t) => t.id === deal.mediaStorageTier);
+    if (tier) {
+      mediaStorageTotal = tier.amount;
+      mediaStorageDriveNote = tier.driveNote;
+      mediaStorageAmazonHardware = tier.amazonHardware;
+      const holdingNote =
+        deal.editDays > 0 ? " · holding through post" : "";
+      mediaStorageLabel = `Media storage & data handling · ${tier.label}${holdingNote}`;
+    }
+  }
+
+  let ditFeeTotal = 0;
+  let ditDays = 0;
+  let ditDayRate = 0;
+  if (deal.chargeDitFee && deal.shootDays > 0) {
+    ditDays = deal.shootDays;
+    ditDayRate = Math.round(
+      getEstimatedBaseDayRate(profile, "DIT", isUnion, matchUnionRates) * multipliers,
+    );
+    ditFeeTotal = ditDayRate * ditDays;
+  }
+
+  const passThroughTotal = kitFeeTotal + additionalCrewTotal + mediaStorageTotal + ditFeeTotal;
+
   // Scope services: each selected service multiplies the base labor
   const scopeServicesMult = (deal.scopeServices ?? []).reduce(
     (acc, sid) => acc + (SCOPE_SERVICE_OPTIONS.find((s) => s.id === sid)?.mult ?? 0),
@@ -757,10 +799,10 @@ function computeRecommendation(
   let laborTarget = shoot + edit + additionalRolesTotal + prePro + usageLicense + unionPH;
   laborTarget *= (1 + scopeServicesMult);
   laborTarget = Math.round((laborTarget * compositeMult) / 50) * 50;
-  const target = laborTarget + kitFeeTotal + additionalCrewTotal;
-  const floor = Math.round((laborTarget * 0.8) / 50) * 50 + kitFeeTotal + additionalCrewTotal;
-  const stretch = Math.round((laborTarget * 1.35) / 50) * 50 + kitFeeTotal + additionalCrewTotal;
-  const floorRate = Math.round((laborTarget * 0.65) / 50) * 50 + kitFeeTotal + additionalCrewTotal;
+  const target = laborTarget + passThroughTotal;
+  const floor = Math.round((laborTarget * 0.8) / 50) * 50 + passThroughTotal;
+  const stretch = Math.round((laborTarget * 1.35) / 50) * 50 + passThroughTotal;
+  const floorRate = Math.round((laborTarget * 0.65) / 50) * 50 + passThroughTotal;
   const breakEvenSales = ltvNum > 0 ? Math.ceil(target / ltvNum) : null;
 
   const stanceCapMult =
@@ -865,6 +907,13 @@ function computeRecommendation(
     additionalCrewTotal,
     kitFeeTotal,
     kitFeeLabel,
+    mediaStorageTotal,
+    mediaStorageLabel,
+    mediaStorageDriveNote,
+    mediaStorageAmazonHardware,
+    ditFeeTotal,
+    ditDays,
+    ditDayRate,
   };
 
   return {
@@ -1047,6 +1096,51 @@ const INTENT_OPTIONS = [
   { id: "brand-relaunch", label: "Brand re-launch & corporate repositioning" },
   { id: "campaign-window", label: "Time-sensitive product/campaign window" },
 ];
+
+/** Samsung T7 portable SSD — Amazon.com reference hardware (Mar 2026). */
+type MediaStorageTier = {
+  id: string;
+  label: string;
+  driveNote: string;
+  amazonHardware: number;
+  amount: number;
+};
+
+function mediaStorageBillAmount(amazonHardware: number, markupPct = 0.25): number {
+  return Math.round((amazonHardware * (1 + markupPct)) / 25) * 25;
+}
+
+const MEDIA_STORAGE_TIERS: MediaStorageTier[] = [
+  {
+    id: "500gb",
+    label: "500 GB",
+    driveNote: "Samsung T7 500GB (MU-PC500)",
+    amazonHardware: 95,
+    amount: 0,
+  },
+  {
+    id: "2tb",
+    label: "2 TB",
+    driveNote: "Samsung T7 2TB (MU-PC2T0)",
+    amazonHardware: 305,
+    amount: 0,
+  },
+  {
+    id: "5tb",
+    label: "5 TB",
+    driveNote: "2× Samsung T7 2TB",
+    amazonHardware: 610,
+    amount: 0,
+  },
+].map((tier) => ({
+  ...tier,
+  amount: mediaStorageBillAmount(tier.amazonHardware),
+}));
+
+const MEDIA_STORAGE_PROVIDER_OPTIONS = [
+  { id: "client", label: "Client provides" },
+  { id: "you", label: "You provide" },
+] as const;
 
 const SCOPE_SERVICE_OPTIONS: { id: string; label: string; mult: number }[] = [
   { id: "color",    label: "Color grading",         mult: 0.12 },
@@ -2073,6 +2167,22 @@ function buildInvoiceLines(deal: Deal, result: Recommendation | null, profile: P
       amount: cs.usageLicense,
     });
   }
+  if (cs.mediaStorageTotal > 0) {
+    lines.push({
+      item: cs.mediaStorageLabel || "Media storage & data handling",
+      qty: "1",
+      rate: cs.mediaStorageTotal,
+      amount: cs.mediaStorageTotal,
+    });
+  }
+  if (cs.ditFeeTotal > 0) {
+    lines.push({
+      item: "DIT / on-set data management",
+      qty: String(cs.ditDays),
+      rate: cs.ditDayRate,
+      amount: cs.ditFeeTotal,
+    });
+  }
   if (cs.kitFeeTotal > 0) {
     lines.push({
       item: cs.kitFeeLabel || "Equipment / kit rental",
@@ -2340,6 +2450,20 @@ function SowPreview({ deal, result, profile }: { deal: Deal; result: Recommendat
               <td style={{ textAlign: "right" }}>${fmt(crew.total)}</td>
             </tr>
           ))}
+          {cs && cs.mediaStorageTotal > 0 && (
+            <tr>
+              <td>{cs.mediaStorageLabel}</td>
+              <td style={{ textAlign: "right" }}>${fmt(cs.mediaStorageTotal)}</td>
+            </tr>
+          )}
+          {cs && cs.ditFeeTotal > 0 && (
+            <tr>
+              <td>
+                DIT / on-set data management ({cs.ditDays} day{cs.ditDays !== 1 ? "s" : ""})
+              </td>
+              <td style={{ textAlign: "right" }}>${fmt(cs.ditFeeTotal)}</td>
+            </tr>
+          )}
           {cs && cs.kitFeeTotal > 0 && (
             <tr>
               <td>Equipment / kit rental</td>
@@ -2426,7 +2550,13 @@ function CrewSplitCard({ cs }: { cs: CrewSplit }) {
   const shootSubtotal = cs.productionSubtotal + shootAdditionalTotal + cs.prePro;
   const postPhaseTotal = cs.postSubtotal + postAdditionalTotal;
   const grandTotal =
-    shootSubtotal + postPhaseTotal + cs.usageLicense + cs.kitFeeTotal + cs.additionalCrewTotal;
+    shootSubtotal +
+    postPhaseTotal +
+    cs.usageLicense +
+    cs.kitFeeTotal +
+    cs.additionalCrewTotal +
+    cs.mediaStorageTotal +
+    cs.ditFeeTotal;
   const shootPct = grandTotal > 0 ? Math.round((shootSubtotal / grandTotal) * 100) : 0;
   const postPct = grandTotal > 0 ? Math.round((postPhaseTotal / grandTotal) * 100) : 0;
 
@@ -2567,6 +2697,44 @@ function CrewSplitCard({ cs }: { cs: CrewSplit }) {
             </div>
             <span style={amountStyle}>${fmt(cs.unionPH)}</span>
           </div>
+        </>
+      )}
+
+      {/* Media & data */}
+      {(cs.mediaStorageTotal > 0 || cs.ditFeeTotal > 0) && (
+        <>
+          <div style={{ height: 1, background: "var(--border)", margin: "4px 0 12px" }} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+            <span style={sectionLabelStyle}>Media &amp; Data</span>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>
+              ${fmt(cs.mediaStorageTotal + cs.ditFeeTotal)}
+            </span>
+          </div>
+          {cs.mediaStorageTotal > 0 && (
+            <div style={rowStyle}>
+              <div>
+                <div style={lineNameStyle}>Media storage &amp; handling</div>
+                <div style={lineSubStyle}>
+                  {cs.mediaStorageDriveNote || cs.mediaStorageLabel}
+                  {cs.mediaStorageAmazonHardware > 0
+                    ? ` · ~$${fmt(cs.mediaStorageAmazonHardware)} Samsung SSD on Amazon + ingest`
+                    : ""}
+                </div>
+              </div>
+              <span style={amountStyle}>${fmt(cs.mediaStorageTotal)}</span>
+            </div>
+          )}
+          {cs.ditFeeTotal > 0 && (
+            <div style={rowStyle}>
+              <div>
+                <div style={lineNameStyle}>DIT / on-set data management</div>
+                <div style={lineSubStyle}>
+                  {cs.ditDays} day{cs.ditDays !== 1 ? "s" : ""} × ${fmt(cs.ditDayRate)}/day
+                </div>
+              </div>
+              <span style={amountStyle}>${fmt(cs.ditFeeTotal)}</span>
+            </div>
+          )}
         </>
       )}
 
@@ -3326,6 +3494,121 @@ function ExtraScreens({
                   matchUnionRates={matchUnionRates}
                 />
               </div>
+
+              <div className="field">
+                <label>Media storage &amp; data</label>
+                <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 10 }}>
+                  Rushes need a home after the shoot. Drives, ingest, and holding for the editor are billed separately from kit rental.
+                </div>
+                <label style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 8, display: "block" }}>
+                  Who provides storage?
+                </label>
+                <Seg
+                  options={MEDIA_STORAGE_PROVIDER_OPTIONS.map((o) => ({ id: o.id, label: o.label }))}
+                  value={deal.mediaStorageProvider}
+                  onChange={(v) =>
+                    setDeal((d) => ({
+                      ...d,
+                      mediaStorageProvider: v,
+                      mediaStorageTier: v === "you" ? d.mediaStorageTier || "500gb" : "",
+                    }))
+                  }
+                />
+
+                {deal.mediaStorageProvider === "you" && (
+                  <div style={{ marginTop: 14 }}>
+                    <label style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 8, display: "block" }}>
+                      Data volume (you provide)
+                    </label>
+                    <div className="chips" style={{ marginTop: 2 }}>
+                      {MEDIA_STORAGE_TIERS.map((tier) => (
+                        <div
+                          key={tier.id}
+                          role="button"
+                          tabIndex={0}
+                          className={`chip${deal.mediaStorageTier === tier.id ? " active" : ""}`}
+                          onClick={() => setDeal((d) => ({ ...d, mediaStorageTier: tier.id }))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setDeal((d) => ({ ...d, mediaStorageTier: tier.id }));
+                            }
+                          }}
+                        >
+                          {tier.label} · ${fmt(tier.amount)}
+                          <span style={{ display: "block", fontSize: 10, fontWeight: 500, opacity: 0.85, marginTop: 2 }}>
+                            {tier.driveNote} · ~${fmt(tier.amazonHardware)} on Amazon + ingest
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="helper" style={{ marginTop: 8 }}>
+                      Pass-through based on Samsung T7 SSD prices on Amazon (~25% for offload, checksum, redundancy, and handoff
+                      {deal.editDays > 0 ? " through post" : ""}). 5 TB uses two 2TB drives — Samsung does not sell a single 5TB T7.
+                      Client-owned drives can still use the DIT option below.
+                    </p>
+                  </div>
+                )}
+
+                {deal.mediaStorageProvider === "client" && (
+                  <p className="helper" style={{ marginTop: 10 }}>
+                    No storage line item. You can still bill on-set DIT / data management labor below.
+                  </p>
+                )}
+
+                {(deal.shootDays > 0 || dayMode === "production" || dayMode === "dual") && (
+                  <div style={{ marginTop: 14 }}>
+                    <label style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 8, display: "block" }}>
+                      DIT / on-set data management
+                    </label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {(["no", "yes"] as const).map((choice) => {
+                        const isYes = choice === "yes";
+                        const isActive = isYes ? deal.chargeDitFee : !deal.chargeDitFee;
+                        const ditPreview =
+                          deal.shootDays > 0
+                            ? getEstimatedBaseDayRate(profile, "DIT", isUnion, matchUnionRates) * deal.shootDays
+                            : 0;
+                        return (
+                          <button
+                            key={choice}
+                            type="button"
+                            onClick={() => setDeal((d) => ({ ...d, chargeDitFee: isYes }))}
+                            style={{
+                              flex: 1,
+                              padding: "13px 0",
+                              borderRadius: 12,
+                              border: `1px solid ${isActive ? (isYes ? "rgba(232,197,122,0.5)" : "var(--border-2)") : "var(--border)"}`,
+                              background: isActive ? (isYes ? "var(--grad-soft)" : "var(--surface-2)") : "var(--surface)",
+                              color: isActive ? (isYes ? "var(--gold)" : "var(--text)") : "var(--text-3)",
+                              fontWeight: 600,
+                              fontSize: 14,
+                              cursor: "pointer",
+                            }}
+                          >
+                            {isYes
+                              ? deal.shootDays > 0
+                                ? `Bill DIT · ~$${fmt(ditPreview)}`
+                                : "Bill DIT"
+                              : "No DIT fee"}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {deal.chargeDitFee && deal.shootDays > 0 && (
+                      <p className="helper" style={{ marginTop: 8 }}>
+                        {deal.shootDays} shoot day{deal.shootDays !== 1 ? "s" : ""} at estimated DIT day rate (ingest, checksum, handoff).
+                      </p>
+                    )}
+                    {deal.chargeDitFee && deal.shootDays <= 0 && (
+                      <p className="helper" style={{ marginTop: 8 }}>
+                        Add production days above to calculate the DIT line item.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="field">
                 <label>Usage rights</label>
                 <Seg options={USAGE_OPTIONS} value={deal.usage} onChange={(v) => setDeal((d) => ({ ...d, usage: v }))} />
