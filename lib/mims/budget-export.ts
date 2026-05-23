@@ -408,7 +408,7 @@ export interface BudgetSheetPayload {
   grandTotalRow: number;
 }
 
-/** 2D grid for Google Sheets API (row/col are 0-indexed in returned metadata). */
+/** 2D grid for spreadsheet export (Excel, Numbers, Google Sheets import). */
 export function buildBudgetSheetPayload(rows: BudgetRow[], meta: BuildBudgetInput): BudgetSheetPayload {
   const title = `${meta.projectTitle || meta.client || "Production"} Video Budget`;
   const values: (string | number)[][] = [
@@ -457,21 +457,38 @@ export function buildBudgetSheetPayload(rows: BudgetRow[], meta: BuildBudgetInpu
   return { title, values, sectionHeaderRows, totalRows, grandTotalRow };
 }
 
-export function downloadBudgetCsv(rows: BudgetRow[], meta: BuildBudgetInput) {
-  const csv = budgetToCsv(rows, meta);
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const slug = (meta.projectTitle || meta.client || "production")
+function budgetFileSlug(meta: BuildBudgetInput): string {
+  return (meta.projectTitle || meta.client || "production")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+    .replace(/^-|-$/g, "") || "video";
+}
+
+export function downloadBudgetCsv(rows: BudgetRow[], meta: BuildBudgetInput) {
+  const csv = "\uFEFF" + budgetToCsv(rows, meta);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `${slug || "video"}-budget.csv`;
+  anchor.download = `${budgetFileSlug(meta)}-budget.csv`;
   anchor.click();
   URL.revokeObjectURL(url);
 }
 
-export function openGoogleSheetsImportHint(): string {
-  return "https://docs.google.com/spreadsheets/create";
+/** Excel .xlsx — opens editable in Excel, Numbers, LibreOffice, and Google Sheets (upload). */
+export async function downloadBudgetXlsx(rows: BudgetRow[], meta: BuildBudgetInput) {
+  const { utils, writeFile } = await import("xlsx");
+  const payload = buildBudgetSheetPayload(rows, meta);
+  const sheet = utils.aoa_to_sheet(payload.values);
+  sheet["!cols"] = [
+    { wch: 34 },
+    { wch: 10 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 22 },
+  ];
+  const workbook = utils.book_new();
+  utils.book_append_sheet(workbook, sheet, "Budget");
+  writeFile(workbook, `${budgetFileSlug(meta)}-budget.xlsx`);
 }
