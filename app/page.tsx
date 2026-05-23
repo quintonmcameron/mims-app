@@ -14,6 +14,21 @@ import {
   type SetStateAction,
 } from "react";
 
+import { FlatRateScopePanel } from "@/components/mims/FlatRateScopePanel";
+import type { FlatComplexity } from "@/lib/mims/flat-rate-scope";
+import {
+  computeFlatRateSuggestion,
+  getDefaultFlatScope,
+  isFlatRateEligible,
+} from "@/lib/mims/flat-rate-scope";
+import {
+  MIMS_ROLE_DAY_RATES,
+  MIMS_ROLES,
+  POPULAR_MIMS_ROLES,
+  PRE_PRO_DAY_ROLES,
+  getMimsRoleDayRate,
+} from "@/lib/mims/role-catalog";
+
 /** Loaded after MIMS_CSS so desktop layout wins over the phone card rules. */
 const MIMS_LAYOUT_OVERRIDE = `@media (min-width: 768px),(hover:hover) and (pointer:fine){.mims-shell{padding:0!important;justify-content:stretch!important;align-items:stretch!important;width:100%!important}.mims-shell .app{width:100%!important;max-width:none!important;min-height:100vh!important;max-height:none!important;border-radius:0!important;border:none!important;box-shadow:none!important}}.mims-shell.mims-wide{padding:0!important;justify-content:stretch!important;align-items:stretch!important;width:100%!important}.mims-shell.mims-wide .app{width:100%!important;max-width:none!important;min-height:100vh!important;max-height:none!important;border-radius:0!important;border:none!important;box-shadow:none!important}`;
 
@@ -67,6 +82,12 @@ interface Deal {
   project: string;
   shootDays: number;
   editDays: number;
+  preProDays: number;
+  pricingMode: "days" | "project";
+  projectFee: string;
+  flatUnitCount: number;
+  flatComplexity: FlatComplexity;
+  flatRevisionRounds: number;
   rush: string;
   usage: string;
   why: string;
@@ -120,6 +141,9 @@ interface CrewSplit {
   shootDays: number;
   productionSubtotal: number;
   prePro: number;
+  preProDays: number;
+  pricingMode: "days" | "project";
+  projectSubtotal: number;
   postDayRate: number;
   editDays: number;
   postSubtotal: number;
@@ -201,6 +225,12 @@ const defaultDeal: Deal = {
   project: "brand-video",
   shootDays: 0,
   editDays: 0,
+  preProDays: 0,
+  pricingMode: "days",
+  projectFee: "",
+  flatUnitCount: 12,
+  flatComplexity: "clean",
+  flatRevisionRounds: 2,
   rush: "normal",
   usage: "organic",
   why: "",
@@ -274,266 +304,11 @@ function getLocationMarketMultiplier(location: string): number {
   return 1;
 }
 
-const VETERAN_ROLE_DAY_RATES: Record<string, number> = {
-  "1st AC": 650,
-  "1st AD": 850,
-  "2nd 2nd AC": 450,
-  "2nd AC": 500,
-  "2nd AD": 650,
-  "2nd Unit 1st AC": 650,
-  "2nd Unit 1st AD": 850,
-  "2nd Unit 2nd AC": 500,
-  "2nd Unit 2nd AD": 650,
-  "2nd Unit DP": 1200,
-  "2nd Unit Director": 1200,
-  "2nd Unit Electric": 550,
-  "2nd Unit Gaffer": 750,
-  "2nd Unit Grip": 550,
-  "3D Artist": 800,
-  "3rd AD": 500,
-  "4th AD": 450,
-  "AD": 850,
-  "ADA": 850,
-  "AI Artist": 900,
-  "Additional Photography": 1200,
-  "Aerial Cinematographer": 1500,
-  "Animal Trainer": 1000,
-  "Animal Wrangler": 750,
-  "Animation Supervisor": 1100,
-  "Animator": 750,
-  "Armorer": 950,
-  "Art Coordinator": 550,
-  "Art Department": 550,
-  "Art Director": 950,
-  "Art Production Assistant": 350,
-  "Art Rigger": 600,
-  "Assistant Animator": 500,
-  "Assistant Editor": 450,
-  "Assistant Electrician": 500,
-  "Assistant Lighting Tech": 500,
-  "Associate Creative Director": 1100,
-  "Associate Producer": 700,
-  "Associate Production Manager": 650,
-  "Audio Engineer": 750,
-  "Audio Visual Technician": 550,
-  "B Cam 1st AC": 650,
-  "B Cam 2nd AC": 500,
-  "B Camera Operator": 850,
-  "BTS Photographer": 650,
-  "BTS Videographer": 700,
-  "Best Boy Electric": 650,
-  "Best Boy Grip": 650,
-  "Boom Operator": 550,
-  "Braider": 650,
-  "CG Artist": 800,
-  "Camera Operator": 850,
-  "Casting Assistant": 400,
-  "Casting Associate": 600,
-  "Casting Director": 1000,
-  "Chief Lighting Technician": 800,
-  "Choreographer": 1100,
-  "Co-Director": 1500,
-  "Color Assistant": 450,
-  "Color Producer": 800,
-  "Colorist": 1100,
-  "Composer": 1200,
-  "Compositor": 800,
-  "Concept Artist": 750,
-  "Content Creator": 700,
-  "Copywriter": 750,
-  "Costume Assistant": 450,
-  "Costume Designer": 950,
-  "Crane Operator": 850,
-  "Creative Assistant": 450,
-  "Creative Director": 1400,
-  "Creative Producer": 1100,
-  "Creative Strategist": 950,
-  "Cyclo Operator": 600,
-  "DIT": 850,
-  "DMX Technician": 750,
-  "Dancer": 600,
-  "Data Manager": 600,
-  "Design Assistant": 450,
-  "Designer": 750,
-  "Digital Designer": 750,
-  "Digitech": 650,
-  "Dimmer Board Operator": 700,
-  "Director": 1800,
-  "Director of Photography": 1500,
-  "Director's Assistant": 450,
-  "Dolly Grip": 650,
-  "Drone Operator": 1000,
-  "Editor": 900,
-  "Electric": 550,
-  "Event Producer": 900,
-  "Executive Assistant": 450,
-  "Executive Producer": 1600,
-  "Experiential Producer": 1100,
-  "FPV Drone Pilot": 1300,
-  "Fabricator": 650,
-  "Fashion Assistant": 400,
-  "Fashion Designer": 950,
-  "Fashion Illustrator": 650,
-  "Fashion Intern": 300,
-  "Film Loader": 450,
-  "Finishing Artist": 1000,
-  "Fixer": 800,
-  "Fixtures Technician": 650,
-  "Florist": 650,
-  "Focus Puller": 650,
-  "Foley Artist": 700,
-  "Food Stylist": 900,
-  "Gaffer": 800,
-  "Garment Production Manager": 800,
-  "Gimbal Operator": 850,
-  "Graphic Designer": 650,
-  "Greensman": 550,
-  "Grip": 550,
-  "Grip Assistant": 450,
-  "Groomer": 750,
-  "Hair & Makeup Artist": 850,
-  "Hair & Makeup Assistant": 450,
-  "Hair Assistant": 450,
-  "Hair Stylist": 750,
-  "Head Fixtures Technician": 800,
-  "Illustrator": 650,
-  "Interior Designer": 850,
-  "Intern": 300,
-  "Intimacy Coordinator": 900,
-  "Jib Crane Tech": 700,
-  "Jib Operator": 850,
-  "Jib Tech": 650,
-  "Key Grip": 800,
-  "Key Scenic Painter": 700,
-  "Layout Artist": 650,
-  "Lead Animator": 1100,
-  "Lead Compositor": 1100,
-  "Lead Crane Tech": 800,
-  "Lead Rigger": 750,
-  "Leadman": 700,
-  "Lighting Assistant": 450,
-  "Lighting Console Programmer": 850,
-  "Lighting Designer": 1000,
-  "Lighting Director": 1100,
-  "Lighting Tech": 550,
-  "Line Producer": 1200,
-  "Live Editor": 850,
-  "Live Show Designer": 1200,
-  "Location Manager": 750,
-  "Location Scout": 600,
-  "Lot Best Boy": 600,
-  "Makeup Artist": 750,
-  "Makeup Assistant": 450,
-  "Manicurist": 600,
-  "Marketing Coordinator": 550,
-  "Marketing Director": 1300,
-  "Marketing Manager": 900,
-  "Motion Designer": 850,
-  "Movement Coach": 850,
-  "Movement Director": 1100,
-  "Music Supervisor": 950,
-  "Music Supervisor Assistant": 450,
-  "Nail Artist": 650,
-  "Nail Assistant": 400,
-  "Office PA": 350,
-  "Omega AR Operator": 1300,
-  "PA": 350,
-  "Packaging Designer": 750,
-  "Pattern Maker": 700,
-  "Photo Assistant": 450,
-  "Photographer": 900,
-  "Picture Car Coordinator": 650,
-  "Post Producer": 950,
-  "Post Production Assistant": 350,
-  "Post Production Coordinator": 550,
-  "Post Sound Mixer": 850,
-  "Post Supervisor": 900,
-  "Prep Supervisor": 750,
-  "Producer": 1300,
-  "Product Designer": 950,
-  "Production Assistant": 350,
-  "Production Coordinator": 550,
-  "Production Designer": 1100,
-  "Production Manager": 850,
-  "Production Supervisor": 750,
-  "Project Manager": 850,
-  "Projection Mapping Specialist": 950,
-  "Prop Maker": 650,
-  "Prop Master": 850,
-  "Prop Stylist": 800,
-  "Pyrotechnician": 1000,
-  "Remote Head Tech": 750,
-  "Render Artist": 750,
-  "Retoucher": 650,
-  "Rig AC": 550,
-  "Rigging BBER": 650,
-  "Rigging BBGR": 650,
-  "Rigging BBE": 650,
-  "Rigging BBG": 650,
-  "Rigging Electrician": 550,
-  "Rigging Gaffer": 800,
-  "Rigging Grip": 550,
-  "Rigging Key Grip": 800,
-  "SFX Coordinator": 600,
-  "SFX Makeup Artist": 850,
-  "SFX Supervisor": 1100,
-  "SFX Technician": 700,
-  "Scenic Painter": 550,
-  "Script Supervisor": 700,
-  "Seamstress": 550,
-  "Set Builder": 600,
-  "Set Carpenter": 600,
-  "Set Decorator": 800,
-  "Set Designer": 850,
-  "Set Dresser": 550,
-  "Set Lighting Technician": 550,
-  "Social Media Manager": 650,
-  "Social Media Strategist": 800,
-  "Sound Designer": 850,
-  "Sound Mixer": 950,
-  "Spatial Designer": 900,
-  "Stage Designer": 900,
-  "Steadicam Operator": 1400,
-  "Storyboard Artist": 700,
-  "Streaming Engineer": 850,
-  "Stunt Coordinator": 1100,
-  "Stunt Rigger": 750,
-  "Stunt Safety Rigger": 800,
-  "Stylist": 900,
-  "Stylist Assistant": 450,
-  "Supervising Producer": 1100,
-  "Swing": 550,
-  "Switch Board Operator": 550,
-  "Tailor": 650,
-  "Technical Director": 1200,
-  "Technocrane Operator": 950,
-  "Technocrane Tech": 750,
-  "Title Designer": 700,
-  "Treatment Designer": 750,
-  "Trinity Operator": 1400,
-  "Truck PA": 350,
-  "UI/UX Designer": 900,
-  "Underwater Camera Operator": 1200,
-  "Underwater Grip": 700,
-  "Underwater Lighting Tech": 700,
-  "Unit Production Manager": 950,
-  "Utility Sound Tech": 450,
-  "VFX Artist": 750,
-  "VFX Supervisor": 1200,
-  "VTR": 600,
-  "Video Growth Engineer": 950,
-  "Videographer": 800,
-  "Visual Researcher": 650,
-  "Web Designer": 800,
-  "Web Developer": 900,
-  "Writer": 950,
-};
+const VETERAN_ROLE_DAY_RATES = MIMS_ROLE_DAY_RATES;
 
 function getVeteranRoleRate(role: string): number {
-  if (VETERAN_ROLE_DAY_RATES[role]) return VETERAN_ROLE_DAY_RATES[role];
-  const normalizedRole = role.toLowerCase();
-  const matchedKey = Object.keys(VETERAN_ROLE_DAY_RATES).find((key) => key.toLowerCase() === normalizedRole);
-  if (matchedKey) return VETERAN_ROLE_DAY_RATES[matchedKey];
+  const fromCatalog = getMimsRoleDayRate(role);
+  if (fromCatalog > 0) return fromCatalog;
 
   const mode = getRoleDayMode(role);
   if (mode === "post") return 850;
@@ -621,7 +396,14 @@ function computeRecommendation(
 
   const primaryRole = deal.dealRole || profile.trade;
   const roleForCalc = primaryRole.toLowerCase();
-  const isMultiRole = roleForCalc.includes("videographer") && deal.shootDays > 0 && deal.editDays > 0;
+  const pricingMode = deal.pricingMode === "project" ? "project" : "days";
+  const projectFeeNum = parseMoney(deal.projectFee) || 0;
+  const isProjectRate = pricingMode === "project" && projectFeeNum > 0;
+  const isMultiRole =
+    !isProjectRate &&
+    roleForCalc.includes("videographer") &&
+    deal.shootDays > 0 &&
+    deal.editDays > 0;
   const primaryMode = getRoleDayMode(primaryRole);
 
   const hasPostAdditionalRole = (deal.additionalRoles ?? []).some((role) => {
@@ -631,8 +413,11 @@ function computeRecommendation(
 
   let primaryShoot = 0;
   let primaryEdit = 0;
+  let projectSubtotal = 0;
 
-  if (primaryMode === "post" || primaryMode === "design") {
+  if (isProjectRate) {
+    projectSubtotal = projectFeeNum;
+  } else if (primaryMode === "post" || primaryMode === "design") {
     primaryEdit = deal.editDays * adjDay;
   } else {
     primaryShoot = deal.shootDays * adjDay;
@@ -643,10 +428,13 @@ function computeRecommendation(
     }
   }
 
+  const preProDays = isProjectRate ? 0 : Math.max(0, deal.preProDays || 0);
+  const prePro = preProDays * adjDay;
+
   const additionalRoleLines: AdditionalRoleLine[] = [];
   let additionalRolesTotal = 0;
 
-  for (const role of deal.additionalRoles ?? []) {
+  if (!isProjectRate) for (const role of deal.additionalRoles ?? []) {
     if (!role) continue;
     const mode = getRoleDayMode(role);
     const roleDay =
@@ -680,7 +468,6 @@ function computeRecommendation(
   const shoot = primaryShoot;
   const edit = primaryEdit;
   const postDayRate = deal.editDays > 0 ? primaryEdit / deal.editDays : 0;
-  const prePro = 0;
   const usageLicense =
     deal.usage === "organic"
       ? 0
@@ -688,7 +475,10 @@ function computeRecommendation(
         ? adjDay * 1.5
         : adjDay * 2.5;
 
-  const unionPH = isUnion ? (shoot + edit + prePro) * 0.215 : 0;
+  const unionLaborBase = isProjectRate
+    ? projectSubtotal + prePro
+    : shoot + edit + prePro;
+  const unionPH = isUnion ? unionLaborBase * 0.215 : 0;
 
   const ltvNum = parseMoney(deal.ltv);
   const roiNum = parseInt((deal.roi || "").replace(/[^0-9]/g, ""), 10);
@@ -727,7 +517,13 @@ function computeRecommendation(
   const valuePremium = compositeMult > 1.0;
 
   // Kit fee: hardware asset rental — not subject to composite multiplier
-  const kitDays = deal.shootDays > 0 ? deal.shootDays : (deal.editDays > 0 ? deal.editDays : 1);
+  const kitDays = isProjectRate
+    ? 1
+    : deal.shootDays > 0
+      ? deal.shootDays
+      : deal.editDays > 0
+        ? deal.editDays
+        : Math.max(preProDays, 1);
   let kitFeeTotal = 0;
   let kitFeeLabel = "";
   if (deal.kitFee === "basic") {
@@ -801,7 +597,11 @@ function computeRecommendation(
     0,
   );
 
-  let laborTarget = shoot + edit + additionalRolesTotal + prePro + usageLicense + unionPH;
+  let laborTarget =
+    (isProjectRate ? projectSubtotal : shoot + edit + additionalRolesTotal) +
+    prePro +
+    usageLicense +
+    unionPH;
   laborTarget *= (1 + scopeServicesMult);
   laborTarget = Math.round((laborTarget * compositeMult) / 50) * 50;
   const target = laborTarget + passThroughTotal;
@@ -887,12 +687,15 @@ function computeRecommendation(
   const crewSplit: CrewSplit = {
     primaryRole,
     productionDayRate: Math.round(adjDay * compositeMult),
-    shootDays: deal.shootDays,
+    shootDays: isProjectRate ? 0 : deal.shootDays,
     productionSubtotal: Math.round(shoot * compositeMult),
     prePro: Math.round(prePro * compositeMult),
+    preProDays,
+    pricingMode,
+    projectSubtotal: Math.round(projectSubtotal * compositeMult),
     postDayRate: Math.round(postDayRate * compositeMult),
-    editDays: deal.editDays,
-    postSubtotal: Math.round(edit * compositeMult),
+    editDays: isProjectRate ? 0 : deal.editDays,
+    postSubtotal: Math.round((isProjectRate ? 0 : edit) * compositeMult),
     additionalRoleLines: additionalRoleLines.map((line) => ({
       ...line,
       dayRate: Math.round(line.dayRate * compositeMult),
@@ -1034,10 +837,24 @@ const RUSH_OPTIONS = [
 ];
 
 const USAGE_OPTIONS = [
-  { id: "organic", label: "Organic / social" },
-  { id: "paid", label: "Paid media" },
-  { id: "broadcast", label: "Broadcast / OOH" },
+  { id: "organic", label: "Organic / owned" },
+  { id: "paid", label: "Paid digital ads" },
+  { id: "broadcast", label: "TV / CTV / OOH" },
 ];
+
+const PRICING_MODE_OPTIONS = [
+  { id: "days", label: "Day rate" },
+  { id: "project", label: "Project / flat" },
+];
+
+const USAGE_HELPER: Record<string, string> = {
+  organic:
+    "Client’s own channels only (social, site, email). No paid ads, TV, streaming commercials, or billboards.",
+  paid:
+    "Paid placement on digital platforms (Meta, TikTok, YouTube, LinkedIn, etc.). Not TV or OOH.",
+  broadcast:
+    "TV and streaming/CTV spots, plus out-of-home (billboards, transit, airports). Non-union or union — confirm on set.",
+};
 
 const DM_OPTIONS = [
   { id: "yes", label: "Yes" },
@@ -1234,9 +1051,9 @@ function buildAdditionalCrewLine(
   };
 }
 
-const NOVA_ROLES = ["1st AC","1st AD","2nd 2nd AC","2nd AC","2nd AD","2nd Unit 1st AC","2nd Unit 1st AD","2nd Unit 2nd AC","2nd Unit 2nd AD","2nd Unit DP","2nd Unit Director","2nd Unit Electric","2nd Unit Gaffer","2nd Unit Grip","3D Artist","3rd AD","4th AD","ADA","AI Artist","Additional Photography","Aerial Cinematographer","Animal Trainer","Animal Wrangler","Animation Supervisor","Animator","Armorer","Art Coordinator","Art Department","Art Director","Art Production Assistant","Art Rigger","Assistant Animator","Assistant Editor","Assistant Electrician","Assistant Lighting Tech","Associate Creative Director","Associate Producer","Associate Production Manager","Audio Engineer","Audio Visual Technician","B Cam 1st AC","B Cam 2nd AC","B Camera Operator","BTS Photographer","BTS Videographer","Best Boy Electric","Best Boy Grip","Boom Operator","Braider","CG Artist","Camera Operator","Casting Assistant","Casting Associate","Casting Director","Chief Lighting Technician","Choreographer","Co-Director","Color Assistant","Color Producer","Colorist","Composer","Compositor","Concept Artist","Content Creator","Copywriter","Costume Assistant","Costume Designer","Crane Operator","Creative Assistant","Creative Director","Creative Producer","Creative Strategist","Cyclo Operator","DIT","DMX Technician","Dancer","Data Manager","Design Assistant","Designer","Digital Designer","Digitech","Dimmer Board Operator","Director","Director of Photography","Director's Assistant","Dolly Grip","Drone Operator","Editor","Electric","Event Producer","Executive Assistant","Executive Producer","Experiential Producer","FPV Drone Pilot","Fabricator","Fashion Assistant","Fashion Designer","Fashion Illustrator","Fashion Intern","Film Loader","Finishing Artist","Fixer","Fixtures Technician","Florist","Focus Puller","Foley Artist","Food Stylist","Gaffer","Garment Production Manager","Gimbal Operator","Graphic Designer","Greensman","Grip","Grip Assistant","Groomer","Hair & Makeup Artist","Hair & Makeup Assistant","Hair Assistant","Hair Stylist","Head Fixtures Technician","Illustrator","Interior Designer","Intern","Intimacy Coordinator","Jib Crane Tech","Jib Operator","Jib Tech","Key Grip","Key Scenic Painter","Layout Artist","Lead Animator","Lead Compositor","Lead Crane Tech","Lead Rigger","Leadman","Lighting Assistant","Lighting Console Programmer","Lighting Designer","Lighting Director","Lighting Tech","Line Producer","Live Editor","Live Show Designer","Location Manager","Location Scout","Lot Best Boy","Makeup Artist","Makeup Assistant","Manicurist","Marketing Coordinator","Marketing Director","Marketing Manager","Motion Designer","Movement Coach","Movement Director","Music Supervisor","Music Supervisor Assistant","Nail Artist","Nail Assistant","Office PA","Omega AR Operator","PA","Packaging Designer","Pattern Maker","Photo Assistant","Photographer","Picture Car Coordinator","Post Producer","Post Production Assistant","Post Production Coordinator","Post Sound Mixer","Post Supervisor","Prep Supervisor","Producer","Product Designer","Production Assistant","Production Coordinator","Production Designer","Production Manager","Production Supervisor","Project Manager","Projection Mapping Specialist","Prop Maker","Prop Master","Prop Stylist","Pyrotechnician","Remote Head Tech","Render Artist","Retoucher","Rig AC","Rigging BBE","Rigging BBG","Rigging Electrician","Rigging Gaffer","Rigging Grip","Rigging Key Grip","SFX Coordinator","SFX Makeup Artist","SFX Supervisor","SFX Technician","Scenic Painter","Script Supervisor","Seamstress","Set Builder","Set Carpenter","Set Decorator","Set Designer","Set Dresser","Set Lighting Technician","Social Media Manager","Social Media Strategist","Sound Designer","Sound Mixer","Spatial Designer","Stage Designer","Steadicam Operator","Storyboard Artist","Streaming Engineer","Stunt Coordinator","Stunt Rigger","Stunt Safety Rigger","Stylist","Stylist Assistant","Supervising Producer","Swing","Switch Board Operator","Tailor","Technical Director","Technocrane Operator","Technocrane Tech","Title Designer","Treatment Designer","Trinity Operator","Truck PA","UI/UX Designer","Underwater Camera Operator","Underwater Grip","Underwater Lighting Tech","Unit Production Manager","Utility Sound Tech","VFX Artist","VFX Supervisor","VTR","Video Growth Engineer","Videographer","Visual Researcher","Web Designer","Web Developer","Writer"];
+const NOVA_ROLES = MIMS_ROLES;
 
-const ADDITIONAL_ROLE_OPTIONS = NOVA_ROLES.map((role) => ({
+const ADDITIONAL_ROLE_OPTIONS = MIMS_ROLES.map((role) => ({
   id: role,
   label: role,
 }));
@@ -1251,7 +1068,7 @@ const LOADING_STEPS = [
 
 
 
-const POPULAR_ROLES = ["Director of Photography","Videographer","Editor","Director","1st AC","Gaffer","Producer","Sound Mixer","Colorist","Motion Designer"];
+const POPULAR_ROLES = POPULAR_MIMS_ROLES;
 
 function RoleSearchInput({
   value,
@@ -1298,6 +1115,17 @@ function RoleSearchInput({
     setOpen(false);
   };
 
+  const commitQuery = () => {
+    const q = query.trim();
+    if (!q) {
+      setQuery("");
+      return;
+    }
+    const exact = MIMS_ROLES.find((r) => r.toLowerCase() === q.toLowerCase());
+    if (exact) select(exact);
+    else setQuery("");
+  };
+
   return (
     <div ref={wrapperRef}>
       <div style={{ position: "relative" }}>
@@ -1313,11 +1141,17 @@ function RoleSearchInput({
           type="text"
           placeholder={
             placeholder ??
-            (value ? "Search to change position…" : "Search 200+ positions… e.g. Director of Photography")
+            (value ? "Search to change position…" : `Search ${MIMS_ROLES.length} positions… e.g. Director of Photography`)
           }
           value={displayValue}
           autoComplete="off"
           onFocus={() => setOpen(true)}
+          onBlur={() => {
+            window.setTimeout(() => {
+              setOpen(false);
+              commitQuery();
+            }, 120);
+          }}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
           style={{
             width: "100%",
@@ -2140,6 +1974,14 @@ function buildInvoiceLines(deal: Deal, result: Recommendation | null, profile: P
   }
 
   const lines: InvoiceLine[] = [];
+  if (cs.pricingMode === "project" && cs.projectSubtotal > 0) {
+    lines.push({
+      item: `${primaryRole} · project fee (flat)`,
+      qty: "1",
+      rate: cs.projectSubtotal,
+      amount: cs.projectSubtotal,
+    });
+  }
   if (cs.shootDays > 0 && cs.productionSubtotal > 0) {
     lines.push({
       item: `${primaryRole} production / shoot`,
@@ -2157,7 +1999,17 @@ function buildInvoiceLines(deal: Deal, result: Recommendation | null, profile: P
     });
   }
   if (cs.prePro > 0) {
-    lines.push({ item: "Pre-production & prep", qty: "1", rate: cs.prePro, amount: cs.prePro });
+    const preQty = cs.preProDays > 0 ? String(cs.preProDays) : "1";
+    const preRate = cs.preProDays > 0 ? Math.round(cs.prePro / cs.preProDays) : cs.prePro;
+    lines.push({
+      item:
+        cs.preProDays > 0
+          ? `Pre-production & prep (${cs.preProDays} day${cs.preProDays !== 1 ? "s" : ""})`
+          : "Pre-production & prep",
+      qty: preQty,
+      rate: preRate,
+      amount: cs.prePro,
+    });
   }
   if (cs.editDays > 0 && cs.postSubtotal > 0) {
     const baseLabel =
@@ -2180,7 +2032,11 @@ function buildInvoiceLines(deal: Deal, result: Recommendation | null, profile: P
     });
   }
   for (const svc of SCOPE_SERVICE_OPTIONS.filter((s) => (deal.scopeServices ?? []).includes(s.id))) {
-    const amount = Math.round((cs.postSubtotal + cs.productionSubtotal) * svc.mult);
+    const scopeBase =
+      cs.pricingMode === "project"
+        ? cs.projectSubtotal + cs.prePro
+        : cs.postSubtotal + cs.productionSubtotal;
+    const amount = Math.round(scopeBase * svc.mult);
     if (amount > 0) lines.push({ item: svc.label, qty: "1", rate: amount, amount });
   }
   for (const crew of cs.additionalCrew) {
@@ -2371,6 +2227,9 @@ function buildSowLineItems(deal: Deal, result: Recommendation | null, profile: P
 
   if (!cs) return lines;
 
+  if (cs.pricingMode === "project" && cs.projectSubtotal > 0) {
+    push(`${primaryRole} · project fee (flat)`, cs.projectSubtotal);
+  }
   if (cs.shootDays > 0 && cs.productionSubtotal > 0) {
     push(
       `${primaryRole} · production / shoot (${cs.shootDays} day${cs.shootDays !== 1 ? "s" : ""})`,
@@ -2385,7 +2244,13 @@ function buildSowLineItems(deal: Deal, result: Recommendation | null, profile: P
         line.subtotal,
       );
     });
-  if (cs.prePro > 0) push("Pre-production & prep", cs.prePro);
+  if (cs.prePro > 0) {
+    const preLabel =
+      cs.preProDays > 0
+        ? `Pre-production & prep (${cs.preProDays} day${cs.preProDays !== 1 ? "s" : ""})`
+        : "Pre-production & prep";
+    push(preLabel, cs.prePro);
+  }
   if (cs.editDays > 0 && cs.postSubtotal > 0) {
     push(
       `${primaryRole} · post-production / edit (${cs.editDays} day${cs.editDays !== 1 ? "s" : ""})`,
@@ -2400,8 +2265,12 @@ function buildSowLineItems(deal: Deal, result: Recommendation | null, profile: P
         line.subtotal,
       );
     });
+  const scopeLaborBase =
+    cs.pricingMode === "project"
+      ? cs.projectSubtotal + cs.prePro
+      : cs.postSubtotal + cs.productionSubtotal;
   selectedServices.forEach((svc) => {
-    const lineAmt = Math.round((cs.postSubtotal + cs.productionSubtotal) * svc.mult);
+    const lineAmt = Math.round(scopeLaborBase * svc.mult);
     push(svc.label, lineAmt);
   });
   if (cs.usageLicense > 0) push("Usage & licensing rights", cs.usageLicense);
@@ -2442,16 +2311,14 @@ function buildDefaultSowDraft(deal: Deal, result: Recommendation | null, profile
   const deposit = Math.round((total * (depositPercent / 100)) / 50) * 50;
   const usageLabel =
     {
-      organic: "Organic social & owned channels, 12 months",
-      paid: "Paid media & digital distribution, 12 months",
-      broadcast: "Broadcast, OOH & paid media, 12 months",
-    }[deal.usage] ?? "Organic social & owned channels, 12 months";
-  const usageExt =
-    deal.usage === "paid"
-      ? "+$2,400 broadcast extension"
-      : deal.usage === "broadcast"
-        ? "+$4,200 broadcast extension"
-        : "";
+      organic:
+        "Organic and owned channels only (social, website, email). No paid media, TV, streaming commercials, or out-of-home. Term: 12 months unless otherwise agreed.",
+      paid:
+        "Paid digital advertising (e.g. Meta, TikTok, YouTube, LinkedIn). Does not include TV, streaming/CTV, or billboards unless upgraded. Term: 12 months.",
+      broadcast:
+        "TV, streaming/CTV commercials, and out-of-home (billboards, transit, digital signage). Term: 12 months. Theatrical or all-media buyouts quoted separately.",
+    }[deal.usage] ??
+    "Organic and owned channels only. Term: 12 months unless otherwise agreed.";
   const projectDescription = `${deal.project ? `${deal.project} production` : "Creative production"} for ${client}.${deal.scopeNotes ? ` ${deal.scopeNotes}` : ""}`;
   const today = new Date().toISOString().slice(0, 10);
 
@@ -2463,7 +2330,7 @@ function buildDefaultSowDraft(deal: Deal, result: Recommendation | null, profile
     projectDescription,
     roles: buildSowRoles(deal, profile),
     lineItems: buildSowLineItems(deal, result, profile),
-    usageRights: `${usageLabel}.${usageExt ? ` ${usageExt}.` : ""}`,
+    usageRights: usageLabel,
     revisions:
       "Two rounds included on primary deliverables. Additional rounds: $250 each. Major creative pivots after picture lock are repriced.",
     total: total > 0 ? String(total) : "",
@@ -2623,6 +2490,7 @@ function CrewSplitCard({ cs }: { cs: CrewSplit }) {
   const shootSubtotal = cs.productionSubtotal + shootAdditionalTotal + cs.prePro;
   const postPhaseTotal = cs.postSubtotal + postAdditionalTotal;
   const grandTotal =
+    cs.projectSubtotal +
     shootSubtotal +
     postPhaseTotal +
     cs.usageLicense +
@@ -2653,6 +2521,42 @@ function CrewSplitCard({ cs }: { cs: CrewSplit }) {
         </div>
       </div>
 
+      {cs.pricingMode === "project" && cs.projectSubtotal > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+            <span style={sectionLabelStyle}>Project fee</span>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>${fmt(cs.projectSubtotal)}</span>
+          </div>
+          <div style={rowStyle}>
+            <div>
+              <div style={lineNameStyle}>{cs.primaryRole || "Primary role"}</div>
+              <div style={lineSubStyle}>Flat fee for creative labor (not per-day)</div>
+            </div>
+            <span style={amountStyle}>${fmt(cs.projectSubtotal)}</span>
+          </div>
+        </div>
+      )}
+
+      {cs.shootDays === 0 && cs.prePro > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+            <span style={sectionLabelStyle}>Pre-production</span>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>${fmt(cs.prePro)}</span>
+          </div>
+          <div style={rowStyle}>
+            <div>
+              <div style={lineNameStyle}>Pre-production &amp; prep</div>
+              {cs.preProDays > 0 && (
+                <div style={lineSubStyle}>
+                  {cs.preProDays} day{cs.preProDays !== 1 ? "s" : ""} × ${fmt(Math.round(cs.prePro / cs.preProDays))}/day
+                </div>
+              )}
+            </div>
+            <span style={amountStyle}>${fmt(cs.prePro)}</span>
+          </div>
+        </div>
+      )}
+
       {/* Shooting Phase */}
       {cs.shootDays > 0 && (
         <div style={{ marginBottom: 16 }}>
@@ -2682,7 +2586,14 @@ function CrewSplitCard({ cs }: { cs: CrewSplit }) {
             ))}
           {cs.prePro > 0 && (
             <div style={{ ...rowStyle, marginBottom: 10 }}>
-              <span style={lineNameStyle}>Pre-production &amp; prep</span>
+              <div>
+                <div style={lineNameStyle}>Pre-production &amp; prep</div>
+                {cs.preProDays > 0 && (
+                  <div style={lineSubStyle}>
+                    {cs.preProDays} day{cs.preProDays !== 1 ? "s" : ""} × ${fmt(Math.round(cs.prePro / cs.preProDays))}/day
+                  </div>
+                )}
+              </div>
               <span style={amountStyle}>${fmt(cs.prePro)}</span>
             </div>
           )}
@@ -3049,7 +2960,7 @@ function buildPresetObjections(profile: Profile, leverageScore: number | null): 
         `I can structure a 6-month organic-only license at a reduced fee. If the work later moves into paid media, broadcast, or broader distribution, we can price that expanded use separately.`,
       ],
       diagnostics: [
-        "Where are you planning to distribute this — owned channels, paid media, or broadcast?",
+        "Where are you planning to distribute this — owned channels, paid digital ads, or TV/streaming/OOH?",
         "Is paid media something you would want flexibility on in the future, even if it is not in scope today?",
         "A 6-month organic license is roughly half the 12-month fee. Does a shorter term address the budget concern?",
       ],
@@ -3208,6 +3119,36 @@ function ExtraScreens({
     return getEstimatedBaseDayRate(profile, deal.dealRole || profile.trade, isUnion, matchUnionRates);
   }, [profile.trade, profile.experience, profile.skill, deal.dealRole, isUnion, matchUnionRates]);
 
+  const flatRateEligible = isFlatRateEligible(deal.dealRole);
+
+  const laborDayRate = useMemo(() => {
+    const loc = getLocationMarketMultiplier(profile.location);
+    const rushPremium = ({ loose: 0, normal: 0, rush: 0.25, fire: 0.5 } as Record<string, number>)[deal.rush] || 0;
+    const usagePremium = ({ organic: 0, paid: 0.25, broadcast: 0.5 } as Record<string, number>)[deal.usage] || 0;
+    const premium = Math.min(rushPremium + usagePremium, 0.5);
+    const extrasMult = 1 + Math.min(profile.extras.length, 4) * 0.04;
+    return Math.round((baseDay * loc * extrasMult * (1 + premium)) / 25) * 25;
+  }, [baseDay, deal.rush, deal.usage, profile.location, profile.extras.length]);
+
+  const flatSuggestion = useMemo(() => {
+    if (!flatRateEligible || deal.pricingMode !== "project") return null;
+    return computeFlatRateSuggestion(
+      deal.dealRole,
+      laborDayRate,
+      deal.flatUnitCount,
+      deal.flatComplexity,
+      deal.flatRevisionRounds,
+    );
+  }, [
+    deal.dealRole,
+    deal.flatComplexity,
+    deal.flatRevisionRounds,
+    deal.flatUnitCount,
+    deal.pricingMode,
+    flatRateEligible,
+    laborDayRate,
+  ]);
+
   const prevLiveTotal = useRef(0);
   const tickDir = liveEstimate.target >= prevLiveTotal.current ? "up" : "down";
   prevLiveTotal.current = liveEstimate.target;
@@ -3296,7 +3237,7 @@ function ExtraScreens({
               deal.rush === "rush"         && { l: "RUSH",  bg: "rgba(255,181,71,.12)",  bd: "rgba(255,181,71,.35)",  c: "#ffb547" },
               deal.rush === "fire"         && { l: "FIRE",  bg: "rgba(255,92,92,.12)",   bd: "rgba(255,92,92,.35)",   c: "#ff5c5c" },
               deal.usage === "paid"        && { l: "PAID",  bg: "rgba(255,122,102,.12)", bd: "rgba(255,122,102,.35)", c: "#ff7a66" },
-              deal.usage === "broadcast"   && { l: "CAST",  bg: "rgba(255,122,102,.12)", bd: "rgba(255,122,102,.35)", c: "#ff7a66" },
+              deal.usage === "broadcast"   && { l: "TV",   bg: "rgba(255,122,102,.12)", bd: "rgba(255,122,102,.35)", c: "#ff7a66" },
               (deal.kitFee && deal.kitFee !== "") && { l: "KIT",   bg: "rgba(232,197,122,.12)", bd: "rgba(232,197,122,.35)", c: "#e8c57a" },
               intelCompanySize === "enterprise" && { l: "ENT+",  bg: "rgba(232,197,122,.12)", bd: "rgba(232,197,122,.35)", c: "#e8c57a" },
               intelCompanySize === "midmarket"  && { l: "MKT",   bg: "rgba(201,160,94,.12)",  bd: "rgba(201,160,94,.35)",  c: "#c9a05e" },
@@ -3463,9 +3404,13 @@ function ExtraScreens({
                   value={deal.dealRole}
                   onChange={(v) => {
                     const mode = getRoleDayMode(v);
+                    const flatDefaults = getDefaultFlatScope(v);
+                    const eligible = isFlatRateEligible(v);
                     setDeal((d) => ({
                       ...d,
                       dealRole: v,
+                      pricingMode: eligible ? d.pricingMode : "days",
+                      ...flatDefaults,
                       shootDays: mode === "post" || mode === "design" ? 0 : d.shootDays,
                       editDays: mode === "production" ? 0 : d.editDays,
                     }));
@@ -3510,7 +3455,46 @@ function ExtraScreens({
                 />
               </div>
 
-              <div className="deal-days-row" style={{ marginTop: 18, marginBottom: 14 }}>
+              {flatRateEligible ? (
+                <div className="field" style={{ marginTop: 8 }}>
+                  <label>Price your labor</label>
+                  <Seg
+                    options={PRICING_MODE_OPTIONS}
+                    value={deal.pricingMode === "project" ? "project" : "days"}
+                    onChange={(v) =>
+                      setDeal((d) => ({
+                        ...d,
+                        pricingMode: v === "project" ? "project" : "days",
+                      }))
+                    }
+                  />
+                  <p className="helper">
+                    {deal.pricingMode === "project"
+                      ? "Flat fee for this deliverable-based role. Scope helper below — kit, crew, and usage still add on."
+                      : "Day rate for open-ended work. Switch to flat when deliverables are fixed (frames, pages, etc.)."}
+                  </p>
+                </div>
+              ) : deal.dealRole ? (
+                <p className="helper" style={{ marginTop: 8, marginBottom: 4 }}>
+                  This role is priced by day rate (production / post days below).
+                </p>
+              ) : null}
+
+              {flatRateEligible && deal.pricingMode === "project" ? (
+                <FlatRateScopePanel
+                  role={deal.dealRole}
+                  laborDayRate={laborDayRate}
+                  unitCount={deal.flatUnitCount}
+                  complexity={deal.flatComplexity}
+                  revisionRounds={deal.flatRevisionRounds}
+                  projectFee={deal.projectFee}
+                  suggestion={flatSuggestion}
+                  onScopeChange={(patch) => setDeal((d) => ({ ...d, ...patch }))}
+                  onProjectFeeChange={(projectFee) => setDeal((d) => ({ ...d, projectFee }))}
+                />
+              ) : deal.pricingMode !== "project" ? (
+              <>
+              <div className="deal-days-row" style={{ marginTop: flatRateEligible ? 8 : 18, marginBottom: 14 }}>
                 {dayMode === "dual" && (
                   <div className="row">
                     <SpinCounter
@@ -3552,6 +3536,24 @@ function ExtraScreens({
                   />
                 )}
               </div>
+              </>
+              ) : null}
+
+              {deal.pricingMode !== "project" && (
+                <div style={{ marginTop: 4, marginBottom: 14 }}>
+                  <SpinCounter
+                    label="Pre-production days (optional)"
+                    value={deal.preProDays}
+                    onChange={(v) => setDeal((d) => ({ ...d, preProDays: v }))}
+                    step={0.5}
+                  />
+                  <p className="helper">
+                    {PRE_PRO_DAY_ROLES.has(deal.dealRole)
+                      ? `Prep before the shoot (casting, locations, design, etc.) bills at the same $${fmt(Math.round(baseDay))}/day rate as production — listed separately on the invoice.`
+                      : "Optional. Use for prep before shoot days (casting, locations, design). Same day rate as production, separate line on the SOW."}
+                  </p>
+                </div>
+              )}
 
               <div className="field-pair">
                 <div className="field">
@@ -3561,6 +3563,7 @@ function ExtraScreens({
                 <div className="field">
                   <label>Usage rights</label>
                   <Seg options={USAGE_OPTIONS} value={deal.usage} onChange={(v) => setDeal((d) => ({ ...d, usage: v }))} />
+                  <div className="helper">{USAGE_HELPER[deal.usage] ?? USAGE_HELPER.organic}</div>
                 </div>
               </div>
 
@@ -4106,7 +4109,11 @@ function ExtraScreens({
               </svg>
               View negotiation points to make
             </button>
-            {result.crewSplit && (result.crewSplit.shootDays > 0 || result.crewSplit.editDays > 0) && (
+            {result.crewSplit &&
+              (result.crewSplit.shootDays > 0 ||
+                result.crewSplit.editDays > 0 ||
+                result.crewSplit.projectSubtotal > 0 ||
+                result.crewSplit.prePro > 0) && (
               <CrewSplitCard cs={result.crewSplit} />
             )}
             <div className="card" style={{ marginTop: 14, ...verdictCardStyle(result.mood) }}>
@@ -4856,11 +4863,25 @@ export default function Page() {
 
   const applyResult = useCallback((r: Recommendation, scope?: string) => {
     setResult(r);
-    setRateDetail(
-      scope ??
-        `${deal.shootDays} shoot day${deal.shootDays === 1 ? "" : "s"} + ${deal.editDays} edit day${deal.editDays === 1 ? "" : "s"} · ${deal.usage} usage`,
-    );
-  }, [deal.editDays, deal.shootDays, deal.usage]);
+    const defaultScope =
+      deal.pricingMode === "project" && deal.projectFee
+        ? `Project fee $${fmt(parseMoney(deal.projectFee))} · ${deal.usage} usage`
+        : [
+            deal.shootDays > 0
+              ? `${deal.shootDays} shoot day${deal.shootDays === 1 ? "" : "s"}`
+              : "",
+            deal.editDays > 0
+              ? `${deal.editDays} edit day${deal.editDays === 1 ? "" : "s"}`
+              : "",
+            deal.preProDays > 0
+              ? `${deal.preProDays} pre-pro day${deal.preProDays === 1 ? "" : "s"}`
+              : "",
+            deal.usage ? `${deal.usage} usage` : "",
+          ]
+            .filter(Boolean)
+            .join(" · ");
+    setRateDetail(scope ?? defaultScope);
+  }, [deal.editDays, deal.preProDays, deal.pricingMode, deal.projectFee, deal.shootDays, deal.usage]);
 
   const setupNext = () => {
     if (setupStep === 1 && !profile.trade) {
@@ -5184,7 +5205,7 @@ export default function Page() {
               <>
                 <h2>What is your position?</h2>
                 <p className="muted small" style={{ margin: "6px 0 18px" }}>
-                  Pick the role you are charging for today. Search from 200+ Nova positions.
+                  Pick the role you are charging for today. Search the MIMS production role list.
                 </p>
                 <RoleSearchInput
                   value={profile.trade}

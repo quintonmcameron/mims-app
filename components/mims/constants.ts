@@ -60,10 +60,19 @@ export const RUSH_OPTIONS = [
 ];
 
 export const USAGE_OPTIONS = [
-  { id: "organic", label: "Organic / social" },
-  { id: "paid", label: "Paid media" },
-  { id: "broadcast", label: "Broadcast / OOH" },
+  { id: "organic", label: "Organic / owned" },
+  { id: "paid", label: "Paid digital ads" },
+  { id: "broadcast", label: "TV / CTV / OOH" },
 ];
+
+export const USAGE_HELPER: Record<string, string> = {
+  organic:
+    "Client’s own channels only (social, site, email). No paid ads, TV, streaming commercials, or billboards.",
+  paid:
+    "Paid placement on digital platforms (Meta, TikTok, YouTube, LinkedIn, etc.). Not TV or OOH.",
+  broadcast:
+    "TV and streaming/CTV spots, plus out-of-home (billboards, transit, airports). Non-union or union — confirm on set.",
+};
 
 export const DM_OPTIONS = [
   { id: "yes", label: "Yes" },

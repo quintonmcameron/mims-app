@@ -9,6 +9,7 @@ import {
   RUSH_OPTIONS,
   SOURCE_OPTIONS,
   USAGE_OPTIONS,
+  USAGE_HELPER,
 } from "@/components/mims/constants";
 import { InvoicePreview, SowPreview } from "@/components/mims/documents";
 import { ChipGroup, DealItem, IconBack, Seg, TabBar } from "@/components/mims/ui";
@@ -173,6 +174,7 @@ export function ExtraScreens({
               <div className="field">
                 <label>Usage rights</label>
                 <Seg options={USAGE_OPTIONS} value={deal.usage} onChange={(v) => setDeal((d) => ({ ...d, usage: v }))} />
+                <div className="helper">{USAGE_HELPER[deal.usage] ?? USAGE_HELPER.organic}</div>
               </div>
               <div className="btn-row">
                 <button type="button" className="btn btn-ghost" onClick={dealBack}>
