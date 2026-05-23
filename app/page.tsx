@@ -15,6 +15,7 @@ import {
 } from "react";
 
 import { FlatRateScopePanel } from "@/components/mims/FlatRateScopePanel";
+import { ProductionBudgetPanel } from "@/components/mims/ProductionBudgetPanel";
 import type { FlatComplexity } from "@/lib/mims/flat-rate-scope";
 import {
   computeDerivedEstimatedDays,
@@ -1968,6 +1969,16 @@ type InvoiceLine = {
   rate: number;
   amount: number;
 };
+
+function buildScopeServiceLines(deal: Deal, cs: CrewSplit): Array<{ label: string; amount: number }> {
+  const scopeBase =
+    cs.pricingMode === "project"
+      ? cs.projectSubtotal + cs.prePro
+      : cs.postSubtotal + cs.productionSubtotal;
+  return SCOPE_SERVICE_OPTIONS.filter((s) => (deal.scopeServices ?? []).includes(s.id))
+    .map((s) => ({ label: s.label, amount: Math.round(scopeBase * s.mult) }))
+    .filter((s) => s.amount > 0);
+}
 
 function buildInvoiceLines(deal: Deal, result: Recommendation | null, profile: Profile): InvoiceLine[] {
   const cs = result?.crewSplit;
@@ -4151,6 +4162,16 @@ function ExtraScreens({
                 result.crewSplit.prePro > 0) && (
               <CrewSplitCard cs={result.crewSplit} />
             )}
+            {result.crewSplit && (
+              <ProductionBudgetPanel
+                deal={deal}
+                profile={profile}
+                target={result.target}
+                crewSplit={result.crewSplit}
+                scopeServiceLines={buildScopeServiceLines(deal, result.crewSplit)}
+                onToast={showToast}
+              />
+            )}
             <div className="card" style={{ marginTop: 14, ...verdictCardStyle(result.mood) }}>
               <p className="muted small">{result.verdict}</p>
             </div>
@@ -4600,6 +4621,16 @@ function ExtraScreens({
             </div>
           </div>
           <InvoicePreview deal={deal} result={result} profile={profile} draft={invoiceDraft} />
+          {result?.crewSplit && (
+            <ProductionBudgetPanel
+              deal={deal}
+              profile={profile}
+              target={result.target}
+              crewSplit={result.crewSplit}
+              scopeServiceLines={buildScopeServiceLines(deal, result.crewSplit)}
+              onToast={showToast}
+            />
+          )}
           <button type="button" className="btn btn-primary" onClick={() => showToast("Invoice send flow coming soon")}>
             Send
           </button>
