@@ -5,16 +5,17 @@ import {
   BUDGET_SECTIONS,
   budgetToTsv,
   buildBudgetRowsFromEstimate,
+  buildBudgetSheetPayload,
   createManualBudgetRow,
   downloadBudgetCsv,
   grandTotal,
-  openGoogleSheetsImportHint,
   sectionTotal,
   type BudgetRow,
   type BudgetSectionId,
   type BuildBudgetInput,
   type CrewSplitBudgetInput,
 } from "@/lib/mims/budget-export";
+import { exportBudgetToGoogleSheets, isGoogleSheetsConfigured } from "@/lib/mims/google-sheets";
 
 function fmt(n: number): string {
   const hasCents = Math.round(n * 100) % 100 !== 0;
@@ -74,6 +75,8 @@ export function ProductionBudgetPanel({
   const [rows, setRows] = useState<BudgetRow[]>(() => buildBudgetRowsFromEstimate(meta));
   const [directedBy, setDirectedBy] = useState(meta.directedBy);
   const [producedBy, setProducedBy] = useState(meta.producedBy);
+  const [sheetsLoading, setSheetsLoading] = useState(false);
+  const googleConfigured = isGoogleSheetsConfigured();
 
   const exportMeta = useMemo(
     () => ({ ...meta, directedBy, producedBy }),
@@ -115,6 +118,21 @@ export function ProductionBudgetPanel({
   const copyForSheets = async () => {
     await navigator.clipboard.writeText(budgetToTsv(rows, exportMeta));
     onToast("Budget copied — paste into Google Sheets (⌘V / Ctrl+V)");
+  };
+
+  const createInGoogleSheets = async () => {
+    setSheetsLoading(true);
+    try {
+      const payload = buildBudgetSheetPayload(rows, exportMeta);
+      const url = await exportBudgetToGoogleSheets(payload);
+      window.open(url, "_blank", "noopener,noreferrer");
+      onToast("Google Sheet created — opening in a new tab");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not create Google Sheet";
+      onToast(message);
+    } finally {
+      setSheetsLoading(false);
+    }
   };
 
   const budgetGrand = grandTotal(rows, "budget");
@@ -191,8 +209,17 @@ export function ProductionBudgetPanel({
           </div>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "14px 0" }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ flex: 1, minWidth: 180 }}
+              disabled={!googleConfigured || sheetsLoading}
+              onClick={createInGoogleSheets}
+            >
+              {sheetsLoading ? "Creating sheet…" : "Create in Google Sheets"}
+            </button>
             <button type="button" className="btn btn-secondary" style={{ flex: 1, minWidth: 140 }} onClick={copyForSheets}>
-              Copy for Google Sheets
+              Copy for paste
             </button>
             <button
               type="button"
@@ -200,26 +227,40 @@ export function ProductionBudgetPanel({
               style={{ flex: 1, minWidth: 140 }}
               onClick={() => {
                 downloadBudgetCsv(rows, exportMeta);
-                onToast("CSV downloaded — import into Google Sheets via File → Import");
+                onToast("CSV downloaded — import via File → Import in Sheets");
               }}
             >
               Download CSV
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              style={{ flex: 1, minWidth: 140 }}
-              onClick={() => {
-                window.open(openGoogleSheetsImportHint(), "_blank", "noopener,noreferrer");
-                onToast("New sheet opened — paste budget or import the CSV");
-              }}
-            >
-              Open Google Sheets
             </button>
             <button type="button" className="btn btn-secondary" style={{ minWidth: 120 }} onClick={refreshFromEstimate}>
               Refresh from estimate
             </button>
           </div>
+
+          {!googleConfigured && (
+            <div
+              style={{
+                marginBottom: 14,
+                padding: "12px 14px",
+                borderRadius: 10,
+                border: "1px solid rgba(232,197,122,0.25)",
+                background: "rgba(232,197,122,0.06)",
+                fontSize: 12,
+                color: "var(--text-2)",
+                lineHeight: 1.65,
+              }}
+            >
+              <strong style={{ color: "var(--gold)" }}>One-time Google setup</strong> — add{" "}
+              <code style={{ fontSize: 11 }}>NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> to enable live Sheets export:
+              <ol style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+                <li>Create a project at Google Cloud Console</li>
+                <li>Enable the <strong>Google Sheets API</strong></li>
+                <li>Create an OAuth <strong>Web client</strong> ID</li>
+                <li>Add authorized origins: <code style={{ fontSize: 11 }}>http://localhost:3000</code> and your Vercel URL</li>
+                <li>Set the client ID in Vercel env vars and redeploy</li>
+              </ol>
+            </div>
+          )}
 
           <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: 12 }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 720 }}>

@@ -400,6 +400,63 @@ export function budgetToTsv(rows: BudgetRow[], meta: BuildBudgetInput): string {
   return budgetToCsv(rows, meta).replace(/,/g, "\t");
 }
 
+export interface BudgetSheetPayload {
+  title: string;
+  values: (string | number)[][];
+  sectionHeaderRows: number[];
+  totalRows: number[];
+  grandTotalRow: number;
+}
+
+/** 2D grid for Google Sheets API (row/col are 0-indexed in returned metadata). */
+export function buildBudgetSheetPayload(rows: BudgetRow[], meta: BuildBudgetInput): BudgetSheetPayload {
+  const title = `${meta.projectTitle || meta.client || "Production"} Video Budget`;
+  const values: (string | number)[][] = [
+    [meta.projectTitle || meta.client || "Production", "", "", "", "", ""],
+    ["Video Budget", "", "", "", "", ""],
+    [`DIRECTED BY ${meta.directedBy}`, "", "", "", `PRODUCED BY ${meta.producedBy}`, ""],
+    [],
+    ["Production", "Unit", "Rate", "Budget", "Actual / Additional", "Notes"],
+  ];
+  const sectionHeaderRows: number[] = [];
+  const totalRows: number[] = [];
+
+  for (const section of BUDGET_SECTIONS) {
+    const sectionRows = rows.filter((r) => r.section === section.id);
+    if (sectionRows.length === 0) continue;
+
+    sectionHeaderRows.push(values.length);
+    values.push([section.label, "", "", "", "", ""]);
+
+    for (const r of sectionRows) {
+      values.push([r.item, r.unit, r.rate, r.budget, r.actual, r.notes]);
+    }
+
+    totalRows.push(values.length);
+    values.push([
+      "TOTAL",
+      "",
+      "",
+      sectionTotal(rows, section.id, "budget"),
+      sectionTotal(rows, section.id, "actual"),
+      "",
+    ]);
+    values.push([]);
+  }
+
+  const grandTotalRow = values.length;
+  values.push([
+    "GRAND TOTAL",
+    "",
+    "",
+    grandTotal(rows, "budget"),
+    grandTotal(rows, "actual"),
+    "",
+  ]);
+
+  return { title, values, sectionHeaderRows, totalRows, grandTotalRow };
+}
+
 export function downloadBudgetCsv(rows: BudgetRow[], meta: BuildBudgetInput) {
   const csv = budgetToCsv(rows, meta);
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
