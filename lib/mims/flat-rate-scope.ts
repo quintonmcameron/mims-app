@@ -7,6 +7,8 @@ export interface FlatRateTemplate {
   unitLabel: string;
   unitLabelPlural: string;
   defaultUnits: number;
+  /** Minimum suggested working days when deliverable math runs low (e.g. writer research). */
+  defaultEstimatedDays?: number;
   hoursPerUnit: Record<FlatComplexity, number>;
   marketPerUnit: Record<FlatComplexity, number>;
 }
@@ -16,6 +18,7 @@ export interface FlatRateSuggestion {
   target: number;
   stretch: number;
   estimatedDays: number;
+  unitDerivedDays: number;
   dayAnchor: number;
   marketAnchor: number;
   summary: string;
@@ -74,6 +77,7 @@ const TEMPLATES: { match: RegExp; template: FlatRateTemplate }[] = [
       unitLabel: "deliverable",
       unitLabelPlural: "deliverables",
       defaultUnits: 2,
+      defaultEstimatedDays: 3,
       hoursPerUnit: { rough: 2, clean: 4, detailed: 8 },
       marketPerUnit: { rough: 350, clean: 750, detailed: 1500 },
     },
@@ -114,16 +118,36 @@ export function getFlatRateTemplate(role: string): FlatRateTemplate | null {
   return null;
 }
 
+export function computeDerivedEstimatedDays(
+  role: string,
+  unitCount: number,
+  complexity: FlatComplexity,
+): number {
+  const template = getFlatRateTemplate(role);
+  if (!template) return 1;
+
+  const units = Math.max(1, unitCount);
+  const fromUnits = (template.hoursPerUnit[complexity] * units) / 8;
+  const withFloor = template.defaultEstimatedDays
+    ? Math.max(fromUnits, template.defaultEstimatedDays)
+    : fromUnits;
+  return Math.max(0.5, Math.round(withFloor * 2) / 2);
+}
+
 export function getDefaultFlatScope(role: string): {
   flatUnitCount: number;
   flatComplexity: FlatComplexity;
   flatRevisionRounds: number;
+  flatEstimatedDays: number;
 } {
   const template = getFlatRateTemplate(role);
+  const flatUnitCount = template?.defaultUnits ?? DEFAULT_TEMPLATE.defaultUnits;
+  const flatComplexity = "clean" as FlatComplexity;
   return {
-    flatUnitCount: template?.defaultUnits ?? DEFAULT_TEMPLATE.defaultUnits,
-    flatComplexity: "clean",
+    flatUnitCount,
+    flatComplexity,
     flatRevisionRounds: 2,
+    flatEstimatedDays: computeDerivedEstimatedDays(role, flatUnitCount, flatComplexity),
   };
 }
 
@@ -137,14 +161,15 @@ export function computeFlatRateSuggestion(
   unitCount: number,
   complexity: FlatComplexity,
   revisionRounds: number,
+  estimatedDays: number,
 ): FlatRateSuggestion | null {
   const template = getFlatRateTemplate(role);
   if (!template || laborDayRate <= 0) return null;
 
   const units = Math.max(1, unitCount);
-  const hours = template.hoursPerUnit[complexity] * units;
-  const estimatedDays = Math.max(0.5, hours / 8);
-  const dayAnchor = estimatedDays * laborDayRate;
+  const unitDerivedDays = computeDerivedEstimatedDays(role, units, complexity);
+  const effectiveDays = Math.max(0.5, estimatedDays);
+  const dayAnchor = effectiveDays * laborDayRate;
   const marketAnchor = units * template.marketPerUnit[complexity];
   const extraRevisions = Math.max(0, revisionRounds - 2);
   const revisionMult = 1 + extraRevisions * 0.12;
@@ -160,10 +185,11 @@ export function computeFlatRateSuggestion(
     floor,
     target,
     stretch,
-    estimatedDays: Math.round(estimatedDays * 10) / 10,
+    estimatedDays: effectiveDays,
+    unitDerivedDays,
     dayAnchor: roundTo50(dayAnchor),
     marketAnchor: roundTo50(marketAnchor),
-    summary: `${units} ${units === 1 ? template.unitLabel : template.unitLabelPlural} · ${complexityLabel} · ${revisionRounds} rev round${revisionRounds !== 1 ? "s" : ""}`,
+    summary: `${effectiveDays} day${effectiveDays !== 1 ? "s" : ""} · ${units} ${units === 1 ? template.unitLabel : template.unitLabelPlural} · ${complexityLabel} · ${revisionRounds} rev`,
   };
 }
 

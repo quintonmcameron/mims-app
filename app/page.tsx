@@ -17,6 +17,7 @@ import {
 import { FlatRateScopePanel } from "@/components/mims/FlatRateScopePanel";
 import type { FlatComplexity } from "@/lib/mims/flat-rate-scope";
 import {
+  computeDerivedEstimatedDays,
   computeFlatRateSuggestion,
   getDefaultFlatScope,
   isFlatRateEligible,
@@ -86,6 +87,7 @@ interface Deal {
   pricingMode: "days" | "project";
   projectFee: string;
   flatUnitCount: number;
+  flatEstimatedDays: number;
   flatComplexity: FlatComplexity;
   flatRevisionRounds: number;
   rush: string;
@@ -229,6 +231,7 @@ const defaultDeal: Deal = {
   pricingMode: "days",
   projectFee: "",
   flatUnitCount: 12,
+  flatEstimatedDays: 3,
   flatComplexity: "clean",
   flatRevisionRounds: 2,
   rush: "normal",
@@ -3138,16 +3141,23 @@ function ExtraScreens({
       deal.flatUnitCount,
       deal.flatComplexity,
       deal.flatRevisionRounds,
+      deal.flatEstimatedDays,
     );
   }, [
     deal.dealRole,
     deal.flatComplexity,
+    deal.flatEstimatedDays,
     deal.flatRevisionRounds,
     deal.flatUnitCount,
     deal.pricingMode,
     flatRateEligible,
     laborDayRate,
   ]);
+
+  const flatUnitDerivedDays = useMemo(() => {
+    if (!flatRateEligible) return 0;
+    return computeDerivedEstimatedDays(deal.dealRole, deal.flatUnitCount, deal.flatComplexity);
+  }, [deal.dealRole, deal.flatComplexity, deal.flatUnitCount, flatRateEligible]);
 
   const prevLiveTotal = useRef(0);
   const tickDir = liveEstimate.target >= prevLiveTotal.current ? "up" : "down";
@@ -3485,11 +3495,28 @@ function ExtraScreens({
                   role={deal.dealRole}
                   laborDayRate={laborDayRate}
                   unitCount={deal.flatUnitCount}
+                  estimatedDays={deal.flatEstimatedDays}
+                  unitDerivedDays={flatUnitDerivedDays}
                   complexity={deal.flatComplexity}
                   revisionRounds={deal.flatRevisionRounds}
                   projectFee={deal.projectFee}
                   suggestion={flatSuggestion}
-                  onScopeChange={(patch) => setDeal((d) => ({ ...d, ...patch }))}
+                  onScopeChange={(patch) =>
+                    setDeal((d) => {
+                      const next = { ...d, ...patch };
+                      if (
+                        (patch.flatUnitCount !== undefined || patch.flatComplexity !== undefined) &&
+                        patch.flatEstimatedDays === undefined
+                      ) {
+                        next.flatEstimatedDays = computeDerivedEstimatedDays(
+                          d.dealRole,
+                          next.flatUnitCount,
+                          next.flatComplexity,
+                        );
+                      }
+                      return next;
+                    })
+                  }
                   onProjectFeeChange={(projectFee) => setDeal((d) => ({ ...d, projectFee }))}
                 />
               ) : deal.pricingMode !== "project" ? (
