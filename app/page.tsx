@@ -23,6 +23,10 @@ import {
   isFlatRateEligible,
 } from "@/lib/mims/flat-rate-scope";
 import {
+  getProjectTypeHelper,
+  getProjectTypeMultiplier,
+} from "@/lib/mims/project-types";
+import {
   MIMS_ROLE_DAY_RATES,
   MIMS_ROLES,
   POPULAR_MIMS_ROLES,
@@ -514,9 +518,10 @@ function computeRecommendation(
     "brand-relaunch": 1.3, "paid-media": 1.45,
   };
   const stratMult = INTENT_MULT[deal.why] || 1.0;
+  const projectTypeMult = getProjectTypeMultiplier(deal.project);
 
-  // Composite rate multiplier: outcome value × corporate scale × intent urgency
-  const compositeMult = valueMult * corpMult * stratMult * publicFootprintMult;
+  // Composite rate multiplier: outcome value × corporate scale × intent × project format
+  const compositeMult = valueMult * corpMult * stratMult * publicFootprintMult * projectTypeMult;
   const valuePremium = compositeMult > 1.0;
 
   // Kit fee: hardware asset rental — not subject to composite multiplier
@@ -823,7 +828,7 @@ const PROJECT_VERTICALS = [
   "Product Design", "Prop Design", "Red Carpet", "Runway", "Short Film",
   "Social Media Content", "Stage Design", "Storyboard", "Street Styling", "TV Show",
   "Test Shoot", "Tour", "User Generated Content", "Video Installation", "Visualizer",
-  "Vlog", "Web Series", "Website",
+  "Vlog", "Web Series", "Website", "YouTube Video",
 ];
 
 const SOURCE_OPTIONS = [
@@ -1436,7 +1441,7 @@ function ProjectSearchInput({
         <input
           ref={inputRef}
           type="text"
-          placeholder={value ? "Search to change project type…" : "Search 48 project types… e.g. Music Video"}
+          placeholder={value ? "Search to change project type…" : "Search 49 project types… e.g. YouTube Video"}
           value={displayValue}
           autoComplete="off"
           onFocus={() => setOpen(true)}
@@ -3454,6 +3459,9 @@ function ExtraScreens({
                   value={deal.project}
                   onChange={(v) => setDeal((d) => ({ ...d, project: v }))}
                 />
+                {getProjectTypeHelper(deal.project) ? (
+                  <p className="helper">{getProjectTypeHelper(deal.project)}</p>
+                ) : null}
               </div>
 
               <div className="field">
