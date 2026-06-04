@@ -71,7 +71,7 @@ export const USAGE_HELPER: Record<string, string> = {
   paid:
     "Paid placement on digital platforms (Meta, TikTok, YouTube, LinkedIn, etc.). Not TV or OOH.",
   broadcast:
-    "TV and streaming/CTV spots, plus out-of-home (billboards, transit, airports). Non-union or union — confirm on set.",
+    "TV and streaming/CTV spots, plus out-of-home (billboards, transit, airports). Confirm distribution and license scope with the client.",
 };
 
 export const DM_OPTIONS = [

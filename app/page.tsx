@@ -164,9 +164,6 @@ interface CrewSplit {
   soundAlloc: number;
   usageLicense: number;
   isMultiRole: boolean;
-  isUnion: boolean;
-  matchUnionRates: boolean;
-  unionPH: number;
   additionalCrew: AdditionalCrewLine[];
   additionalCrewTotal: number;
   kitFeeTotal: number;
@@ -195,8 +192,6 @@ interface Recommendation {
   crewSplit?: CrewSplit;
   floorRate?: number;
   breakEvenSales?: number | null;
-  isUnion?: boolean;
-  matchUnionRates?: boolean;
 }
 
 interface SimMsg {
@@ -328,7 +323,7 @@ function getVeteranRoleRate(role: string): number {
   return 650;
 }
 
-function getEstimatedBaseDayRate(profile: Profile, role: string, isUnion = false, matchUnionRates = false): number {
+function getEstimatedBaseDayRate(profile: Profile, role: string): number {
   const veteranBase = getVeteranRoleRate(role || profile.trade);
   const tierMult =
     ({
@@ -341,8 +336,7 @@ function getEstimatedBaseDayRate(profile: Profile, role: string, isUnion = false
       "5-10": 0.9,
       "10+": 1,
     } as Record<string, number>)[profile.experience || profile.skill || "mid"] ?? 0.8;
-  const unionFloorMult = isUnion || matchUnionRates ? 1.18 : 1;
-  return Math.round((veteranBase * tierMult * unionFloorMult) / 25) * 25;
+  return Math.round((veteranBase * tierMult) / 25) * 25;
 }
 
 function getPublicFootprintMultiplier(deal: Deal): number {
@@ -377,13 +371,8 @@ function getPublicFootprintMultiplier(deal: Deal): number {
   return Math.max(0.9, Math.min(1.45, combined));
 }
 
-function computeRecommendation(
-  profile: Profile,
-  deal: Deal,
-  isUnion = false,
-  matchUnionRates = false,
-): Recommendation {
-  const base = getEstimatedBaseDayRate(profile, deal.dealRole || profile.trade, isUnion, matchUnionRates);
+function computeRecommendation(profile: Profile, deal: Deal): Recommendation {
+  const base = getEstimatedBaseDayRate(profile, deal.dealRole || profile.trade);
   const extrasMult = 1 + Math.min(profile.extras.length, 4) * 0.04;
   const resumeScore = profile.resumeLeverageScore ?? 0;
   const resumeClientCount = profile.resumeClientSignals?.length ?? 0;
@@ -451,7 +440,7 @@ function computeRecommendation(
     if (!role || role === deal.dealRole) continue;
     const mode = getRoleDayMode(role);
     const roleDay = Math.round(
-      (getEstimatedBaseDayRate(profile, role, isUnion, matchUnionRates) *
+      (getEstimatedBaseDayRate(profile, role) *
         multipliers *
         additionalRoleMult) /
         25,
@@ -491,11 +480,6 @@ function computeRecommendation(
       : deal.usage === "paid"
         ? adjDay * 1.5
         : adjDay * 2.5;
-
-  const unionLaborBase = isProjectRate
-    ? projectSubtotal + prePro
-    : shoot + edit + prePro;
-  const unionPH = isUnion ? unionLaborBase * 0.215 : 0;
 
   const ltvNum = parseMoney(deal.ltv);
   const roiNum = parseInt((deal.roi || "").replace(/[^0-9]/g, ""), 10);
@@ -574,7 +558,7 @@ function computeRecommendation(
   const additionalCrew = (deal.additionalCrew ?? [])
     .map((entry) => {
       const crewRate =
-        getEstimatedBaseDayRate(profile, entry.role, isUnion, matchUnionRates) * multipliers;
+        getEstimatedBaseDayRate(profile, entry.role) * multipliers;
       return buildAdditionalCrewLine(entry, deal, crewRate);
     })
     .filter((line): line is AdditionalCrewLine => Boolean(line));
@@ -602,7 +586,7 @@ function computeRecommendation(
   if (deal.chargeDitFee && deal.shootDays > 0) {
     ditDays = deal.shootDays;
     ditDayRate = Math.round(
-      getEstimatedBaseDayRate(profile, "DIT", isUnion, matchUnionRates) * multipliers,
+      getEstimatedBaseDayRate(profile, "DIT") * multipliers,
     );
     ditFeeTotal = ditDayRate * ditDays;
   }
@@ -618,8 +602,7 @@ function computeRecommendation(
   let laborTarget =
     (isProjectRate ? projectSubtotal : shoot + edit + additionalRolesTotal) +
     prePro +
-    usageLicense +
-    unionPH;
+    usageLicense;
   laborTarget *= (1 + scopeServicesMult);
   laborTarget = Math.round((laborTarget * compositeMult) / 50) * 50;
   const target = laborTarget + passThroughTotal;
@@ -726,9 +709,6 @@ function computeRecommendation(
     soundAlloc: profile.extras.some((extra) => extra.toLowerCase().includes("sound")) ? Math.round(edit * compositeMult * 0.12) : 0,
     usageLicense: Math.round(usageLicense * compositeMult),
     isMultiRole,
-    isUnion,
-    matchUnionRates,
-    unionPH: Math.round(unionPH * compositeMult),
     additionalCrew,
     additionalCrewTotal,
     kitFeeTotal,
@@ -756,8 +736,6 @@ function computeRecommendation(
     mood,
     valuePremium,
     crewSplit,
-    isUnion,
-    matchUnionRates,
   };
 }
 
@@ -871,7 +849,7 @@ const USAGE_HELPER: Record<string, string> = {
   paid:
     "Paid placement on digital platforms (Meta, TikTok, YouTube, LinkedIn, etc.). Not TV or OOH.",
   broadcast:
-    "TV and streaming/CTV spots, plus out-of-home (billboards, transit, airports). Non-union or union — confirm on set.",
+    "TV and streaming/CTV spots, plus out-of-home (billboards, transit, airports). Confirm distribution and license scope with the client.",
 };
 
 const DM_OPTIONS = [
@@ -1099,26 +1077,14 @@ function bumpDealDaysForAdditionalRoles(deal: Deal, additionalRoles: string[]): 
   return next;
 }
 
-function getAdditionalSelfRoleDayRate(
-  profile: Profile,
-  role: string,
-  deal: Deal,
-  isUnion: boolean,
-  matchUnionRates: boolean,
-): number {
-  const full = getAdjustedRoleDayRate(profile, role, deal, isUnion, matchUnionRates);
+function getAdditionalSelfRoleDayRate(profile: Profile, role: string, deal: Deal): number {
+  const full = getAdjustedRoleDayRate(profile, role, deal);
   const mult = getAdditionalRoleChargeMult(deal);
   return Math.round((full * mult) / 25) * 25;
 }
 
-function getAdjustedRoleDayRate(
-  profile: Profile,
-  role: string,
-  deal: Deal,
-  isUnion = false,
-  matchUnionRates = false,
-): number {
-  const base = getEstimatedBaseDayRate(profile, role, isUnion, matchUnionRates);
+function getAdjustedRoleDayRate(profile: Profile, role: string, deal: Deal): number {
+  const base = getEstimatedBaseDayRate(profile, role);
   const extrasMult = 1 + Math.min(profile.extras.length, 4) * 0.04;
   const locationMult = getLocationMarketMultiplier(profile.location);
   const rushPremium = ({ loose: 0, normal: 0, rush: 0.25, fire: 0.5 } as Record<string, number>)[deal.rush] || 0;
@@ -1358,15 +1324,11 @@ function AdditionalCrewPicker({
   onChange,
   deal,
   profile,
-  isUnion,
-  matchUnionRates,
 }: {
   entries: AdditionalCrewEntry[];
   onChange: (entries: AdditionalCrewEntry[]) => void;
   deal: Deal;
   profile: Profile;
-  isUnion: boolean;
-  matchUnionRates: boolean;
 }) {
   const [pickRole, setPickRole] = useState("");
   const addedRoles = entries.map((e) => e.role);
@@ -1390,7 +1352,7 @@ function AdditionalCrewPicker({
   };
 
   const lineEstimate = (entry: AdditionalCrewEntry) => {
-    const rate = getEstimatedBaseDayRate(profile, entry.role, isUnion, matchUnionRates);
+    const rate = getEstimatedBaseDayRate(profile, entry.role);
     return buildAdditionalCrewLine(entry, deal, rate)?.total ?? 0;
   };
 
@@ -1426,7 +1388,7 @@ function AdditionalCrewPicker({
           {entries.map((entry) => {
             const mode = getRoleDayMode(entry.role);
             const days = getAdditionalCrewDayCount(mode, deal);
-            const rate = getEstimatedBaseDayRate(profile, entry.role, isUnion, matchUnionRates);
+            const rate = getEstimatedBaseDayRate(profile, entry.role);
             const subtotal = lineEstimate(entry);
             return (
               <div
@@ -1510,8 +1472,6 @@ function AdditionalRolesPicker({
   onChargePctChange,
   deal,
   profile,
-  isUnion,
-  matchUnionRates,
   primaryRole,
 }: {
   roles: string[];
@@ -1520,8 +1480,6 @@ function AdditionalRolesPicker({
   onChargePctChange: (pct: 50 | 60 | 75) => void;
   deal: Deal;
   profile: Profile;
-  isUnion: boolean;
-  matchUnionRates: boolean;
   primaryRole: string;
 }) {
   const [pickRole, setPickRole] = useState("");
@@ -1562,14 +1520,8 @@ function AdditionalRolesPicker({
           <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
             {roles.map((role) => {
               const mode = getRoleDayMode(role);
-              const charged = getAdditionalSelfRoleDayRate(
-                profile,
-                role,
-                deal,
-                isUnion,
-                matchUnionRates,
-              );
-              const full = getAdjustedRoleDayRate(profile, role, deal, isUnion, matchUnionRates);
+              const charged = getAdditionalSelfRoleDayRate(profile, role, deal);
+              const full = getAdjustedRoleDayRate(profile, role, deal);
               const days =
                 mode === "post" || mode === "design"
                   ? previewDeal.editDays
@@ -2745,8 +2697,6 @@ type Props = {
   profileRole: string;
   gearLocker: GearItem[];
   profile: Profile;
-  isUnion: boolean;
-  matchUnionRates: boolean;
   leverageScore: number | null;
 };
 
@@ -2782,11 +2732,7 @@ function CrewSplitCard({ cs }: { cs: CrewSplit }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
         <span className="eyebrow">Crew split</span>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          {cs.isUnion ? (
-            <span className="badge gold" style={{ fontSize: 11, letterSpacing: "0.05em" }}>Union Scale</span>
-          ) : cs.matchUnionRates ? (
-            <span className="badge green" style={{ fontSize: 11, letterSpacing: "0.05em" }}>Cash Equiv.</span>
-          ) : null}
+          <span className="badge" style={{ fontSize: 11, letterSpacing: "0.05em" }}>Freelance market</span>
           {cs.isMultiRole && <span className="badge gold">Dual-role</span>}
         </div>
       </div>
@@ -2936,20 +2882,6 @@ function CrewSplitCard({ cs }: { cs: CrewSplit }) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={lineNameStyle}>Usage &amp; licensing rights</span>
             <span style={amountStyle}>${fmt(cs.usageLicense)}</span>
-          </div>
-        </>
-      )}
-
-      {/* Union P&H */}
-      {cs.isUnion && cs.unionPH > 0 && (
-        <>
-          <div style={{ height: 1, background: "var(--border)", margin: "4px 0 12px" }} />
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div>
-              <span style={lineNameStyle}>Mandatory Union P&amp;H (21.5%)</span>
-              <div style={lineSubStyle}>Pension &amp; Health — IATSE/DGA standard</div>
-            </div>
-            <span style={amountStyle}>${fmt(cs.unionPH)}</span>
           </div>
         </>
       )}
@@ -3117,7 +3049,7 @@ const HIGH_VALUE_KEYWORDS = [
   "super bowl", "emmy", "oscar", "sundance", "cannes",
   "multi-camera", "director of photography", "lead editor", "executive producer",
   "showrunner", "feature film", "major label", "platinum", "grammy",
-  "iatse", "dga", "sag", "union", "enterprise", "agency",
+  "enterprise", "agency",
 ];
 
 const LEADERSHIP_KEYWORDS = [
@@ -3174,7 +3106,7 @@ function analyzeProfessionalHighlights(input: {
     if (lower.includes(kw)) leadershipSignals.push(kw);
   }
   const clientSignals = matchedKeywords.filter((kw) =>
-    !["multi-camera", "director of photography", "lead editor", "executive producer", "showrunner", "feature film", "major label", "platinum", "iatse", "dga", "sag", "union", "enterprise", "agency", "national commercial", "broadcast"].includes(kw)
+    !["multi-camera", "director of photography", "lead editor", "executive producer", "showrunner", "feature film", "major label", "platinum", "enterprise", "agency", "national commercial", "broadcast"].includes(kw)
   );
 
   let score = 3;
@@ -3358,8 +3290,6 @@ function ExtraScreens({
   profileRole,
   gearLocker,
   profile,
-  isUnion,
-  matchUnionRates,
   leverageScore,
 }: Props) {
   const lockerKitDays = deal.shootDays > 0 ? deal.shootDays : (deal.editDays > 0 ? deal.editDays : 1);
@@ -3381,13 +3311,13 @@ function ExtraScreens({
   }), [deal, intelWhy, intelCompanySize, intelAnnualRevenue, intelLtv, intelRoi, intelBudget]);
 
   const liveEstimate = useMemo(
-    () => computeRecommendation(profile, withLivePreviewDays(liveDeal), isUnion, matchUnionRates),
-    [profile, liveDeal, isUnion, matchUnionRates]
+    () => computeRecommendation(profile, withLivePreviewDays(liveDeal)),
+    [profile, liveDeal]
   );
 
   const baseDay = useMemo(() => {
-    return getEstimatedBaseDayRate(profile, deal.dealRole || profile.trade, isUnion, matchUnionRates);
-  }, [profile.trade, profile.experience, profile.skill, deal.dealRole, isUnion, matchUnionRates]);
+    return getEstimatedBaseDayRate(profile, deal.dealRole || profile.trade);
+  }, [profile.trade, profile.experience, profile.skill, deal.dealRole]);
 
   const flatRateEligible = isFlatRateEligible(deal.dealRole);
 
@@ -3517,7 +3447,7 @@ function ExtraScreens({
               (r) => r && r !== deal.dealRole,
             );
             const primaryFullDay = deal.dealRole
-              ? getAdjustedRoleDayRate(profile, deal.dealRole, deal, isUnion, matchUnionRates)
+              ? getAdjustedRoleDayRate(profile, deal.dealRole, deal)
               : laborDayRate;
             const crewRateLines: { role: string; rate: number; kind: "primary" | "additional" }[] = [];
             if (deal.dealRole) {
@@ -3530,7 +3460,7 @@ function ExtraScreens({
             for (const role of additionalRoles) {
               crewRateLines.push({
                 role,
-                rate: getAdditionalSelfRoleDayRate(profile, role, deal, isUnion, matchUnionRates),
+                rate: getAdditionalSelfRoleDayRate(profile, role, deal),
                 kind: "additional",
               });
             }
@@ -3761,8 +3691,6 @@ function ExtraScreens({
                   }
                   deal={deal}
                   profile={profile}
-                  isUnion={isUnion}
-                  matchUnionRates={matchUnionRates}
                   primaryRole={deal.dealRole}
                 />
               </div>
@@ -3926,8 +3854,6 @@ function ExtraScreens({
                   onChange={(additionalCrew) => setDeal((d) => ({ ...d, additionalCrew }))}
                   deal={deal}
                   profile={profile}
-                  isUnion={isUnion}
-                  matchUnionRates={matchUnionRates}
                 />
               </div>
 
@@ -4003,7 +3929,7 @@ function ExtraScreens({
                         const isActive = isYes ? deal.chargeDitFee : !deal.chargeDitFee;
                         const ditPreview =
                           deal.shootDays > 0
-                            ? getEstimatedBaseDayRate(profile, "DIT", isUnion, matchUnionRates) * deal.shootDays
+                            ? getEstimatedBaseDayRate(profile, "DIT") * deal.shootDays
                             : 0;
                         return (
                           <button
@@ -4377,19 +4303,9 @@ function ExtraScreens({
               <h3>{result.headline}</h3>
               <p className="muted small">{result.rationale}</p>
               <div style={{ marginTop: 10 }}>
-                {result.isUnion ? (
-                  <span className="badge gold" style={{ letterSpacing: "0.07em", fontSize: 11 }}>
-                    UNION AGREEMENT SCALE
-                  </span>
-                ) : result.matchUnionRates ? (
-                  <span className="badge green" style={{ letterSpacing: "0.07em", fontSize: 11 }}>
-                    NON-UNION CASH EQUIVALENT
-                  </span>
-                ) : (
-                  <span className="badge" style={{ letterSpacing: "0.07em", fontSize: 11 }}>
-                    INDEPENDENT MARKET RATE
-                  </span>
-                )}
+                <span className="badge" style={{ letterSpacing: "0.07em", fontSize: 11 }}>
+                  FREELANCE MARKET RATE
+                </span>
               </div>
             </div>
             <div className="card" style={{ marginTop: 14 }}>
@@ -4577,7 +4493,7 @@ function ExtraScreens({
             </div>
 
             <p style={{ marginTop: 28, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.04)", fontSize: 11, color: "var(--text-3)", opacity: 0.72, lineHeight: 1.65, textAlign: "center", marginBottom: 0 }}>
-              Disclaimer: MIMS provides educational pricing and deal-prep estimates based on the information entered by the user. Results are not legal, financial, tax, union, guild, accounting, or contract advice, and they are not a guarantee of what any client will accept. Review your own agreements, confirm current market or union requirements when relevant, and use your judgment before sending any quote, invoice, or scope. By using MIMS, you agree to the <a href="/terms" style={{ color: "var(--gold)", textDecoration: "none" }}>Terms</a> and <a href="/privacy" style={{ color: "var(--gold)", textDecoration: "none" }}>Privacy Policy</a>.
+              Disclaimer: MIMS provides educational pricing and deal-prep estimates based on the information entered by the user. Results are not legal, financial, tax, accounting, or contract advice, and they are not a guarantee of what any client will accept. MIMS is for independent freelance professionals only. Review your own agreements, confirm current freelance market requirements when relevant, and use your judgment before sending any quote, invoice, or scope. By using MIMS, you agree to the <a href="/terms" style={{ color: "var(--gold)", textDecoration: "none" }}>Terms</a> and <a href="/privacy" style={{ color: "var(--gold)", textDecoration: "none" }}>Privacy Policy</a>.
             </p>
           </div>
 
@@ -5212,9 +5128,6 @@ export default function Page() {
   const [intelBudget, setIntelBudget] = useState("");
   const [intelAnnualRevenue, setIntelAnnualRevenue] = useState("");
   const [intelCompanySize, setIntelCompanySize] = useState("");
-  const [isUnion, setIsUnion] = useState(false);
-  const [matchUnionRates, setMatchUnionRates] = useState(false);
-
   const displayName = profile.name || "";
   const homeFirst = displayName ? displayName.split(" ")[0] : "";
   const profileRole = [tradeLabel(profile.trade), profile.location].filter(Boolean).join(" · ");
@@ -5353,7 +5266,7 @@ export default function Page() {
       } else {
         timeouts.push(
           setTimeout(() => {
-            applyResult(computeRecommendation(profile, analysisDealRef.current, isUnion, matchUnionRates));
+            applyResult(computeRecommendation(profile, analysisDealRef.current));
             go("deal-result");
           }, 350),
         );
@@ -5362,7 +5275,7 @@ export default function Page() {
 
     timeouts.push(setTimeout(tick, 0));
     return () => timeouts.forEach(clearTimeout);
-  }, [screen, profile, deal, applyResult, go, isUnion, matchUnionRates]);
+  }, [screen, profile, deal, applyResult, go]);
 
   useEffect(
     () => () => {
@@ -5839,7 +5752,7 @@ export default function Page() {
                     )}
                   </div>
                   <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: setupAgreed ? "var(--text)" : "var(--text-2)", lineHeight: 1.55 }}>
-                    I understand that MIMS provides educational pricing and deal-prep estimates, not legal, financial, tax, union, guild, accounting, or contract advice. I agree to the <a href="/terms" style={{ color: "var(--gold)", textDecoration: "none" }} onClick={(event) => event.stopPropagation()}>Terms</a> and <a href="/privacy" style={{ color: "var(--gold)", textDecoration: "none" }} onClick={(event) => event.stopPropagation()}>Privacy Policy</a>.
+                    I understand that MIMS provides educational pricing and deal-prep estimates, not legal, financial, tax, accounting, or contract advice. MIMS is for independent freelance work only. I agree to the <a href="/terms" style={{ color: "var(--gold)", textDecoration: "none" }} onClick={(event) => event.stopPropagation()}>Terms</a> and <a href="/privacy" style={{ color: "var(--gold)", textDecoration: "none" }} onClick={(event) => event.stopPropagation()}>Privacy Policy</a>.
                   </p>
                 </button>
 
@@ -5976,7 +5889,7 @@ export default function Page() {
             </div>
 
             <p className="home-span-full" style={{ marginTop: 28, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.04)", fontSize: 11, color: "var(--text-3)", opacity: 0.72, lineHeight: 1.65, textAlign: "center", marginBottom: 0 }}>
-              Disclaimer: MIMS provides educational pricing and deal-prep estimates based on the information entered by the user. Results are not legal, financial, tax, union, guild, accounting, or contract advice, and they are not a guarantee of what any client will accept. Review your own agreements, confirm current market or union requirements when relevant, and use your judgment before sending any quote, invoice, or scope. By using MIMS, you agree to the <a href="/terms" style={{ color: "var(--gold)", textDecoration: "none" }}>Terms</a> and <a href="/privacy" style={{ color: "var(--gold)", textDecoration: "none" }}>Privacy Policy</a>.
+              Disclaimer: MIMS provides educational pricing and deal-prep estimates based on the information entered by the user. Results are not legal, financial, tax, accounting, or contract advice, and they are not a guarantee of what any client will accept. MIMS is for independent freelance professionals only. Review your own agreements, confirm current freelance market requirements when relevant, and use your judgment before sending any quote, invoice, or scope. By using MIMS, you agree to the <a href="/terms" style={{ color: "var(--gold)", textDecoration: "none" }}>Terms</a> and <a href="/privacy" style={{ color: "var(--gold)", textDecoration: "none" }}>Privacy Policy</a>.
             </p>
           </div>
           <TabBar active={screen} onNavigate={go} />
@@ -6016,8 +5929,6 @@ export default function Page() {
           profileRole={profileRole}
           gearLocker={profile.gearLocker}
           profile={profile}
-          isUnion={isUnion}
-          matchUnionRates={matchUnionRates}
           leverageScore={leverageScore}
         />
       </div>

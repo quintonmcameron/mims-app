@@ -31,7 +31,7 @@ function writeProducerReviewTxt() {
     "MIMS APP ROLES — PRODUCER REVIEW",
     `Generated ${new Date().toLocaleDateString("en-US", { dateStyle: "long" })}`,
     "",
-    "Day rate = expert anchor (10+ yrs), non-union, before rush/usage/client adjustments.",
+    "Day rate = expert anchor (10+ yrs), freelance market, before rush/usage/client adjustments.",
     "",
     "Role\tDay rate",
   ];
@@ -83,7 +83,7 @@ doc.moveDown(0.4);
 doc.font("Helvetica").fontSize(11).fillColor(muted).text("Producer review · day rates in the app");
 doc.moveDown(1);
 doc.font("Helvetica").fontSize(9).fillColor(muted).text(
-  `${sorted.length} roles · Day rate = expert anchor (10+ yrs), non-union, before rush/usage/client adjustments.`,
+  `${sorted.length} roles · Day rate = expert anchor (10+ yrs), freelance market, before rush/usage/client adjustments.`,
   { lineGap: 3 },
 );
 doc.moveDown(0.5);

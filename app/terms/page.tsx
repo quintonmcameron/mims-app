@@ -43,14 +43,14 @@ export default function TermsPage() {
         <section style={sectionStyle}>
           <h2 style={headingStyle}>1. What MIMS Does</h2>
           <p style={textStyle}>
-            MIMS is an educational business tool for creative freelancers. It helps users think through pricing, scope, project inputs, client signals, and deal preparation. The app provides estimates and suggested language based on information entered by the user.
+            MIMS is an educational business tool for independent, freelance creative professionals. It helps users think through pricing, scope, project inputs, client signals, and deal preparation. Rate estimates reflect freelance market benchmarks for independent work only. The app provides estimates and suggested language based on information entered by the user.
           </p>
         </section>
 
         <section style={sectionStyle}>
           <h2 style={headingStyle}>2. No Professional Advice</h2>
           <p style={textStyle}>
-            MIMS does not provide legal, financial, tax, accounting, union, guild, or contract advice. Pricing outputs, negotiation guidance, invoice previews, and scope suggestions are informational estimates only. You are responsible for reviewing your own agreements, confirming current rules or minimums when they apply, and deciding what to send to a client.
+            MIMS does not provide legal, financial, tax, accounting, or contract advice. Pricing outputs, negotiation guidance, invoice previews, and scope suggestions are informational estimates only. You are responsible for reviewing your own agreements, confirming freelance market rates and scope fit your project, and deciding what to send to a client.
           </p>
         </section>
 
