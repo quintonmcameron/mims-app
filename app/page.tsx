@@ -109,7 +109,7 @@ interface Deal {
   scopeServices: string[];
   dealRole: string;
   additionalRoles: string[];
-  /** Secondary role billed at this % of catalog day rate (50 / 60 / 75). */
+  /** Non-primary roles you perform; each billed at this % of its catalog day rate (50 / 60 / 75). */
   additionalRoleChargePct: 50 | 60 | 75;
   additionalCrew: AdditionalCrewEntry[];
   kitFee: string;
@@ -1073,6 +1073,44 @@ function getAdditionalRoleChargeMult(deal: Deal): number {
   return pct / 100;
 }
 
+const MAX_ADDITIONAL_SELF_ROLES = 6;
+
+/** Ensure shoot/edit day counts exist when added roles need them in the estimate. */
+function bumpDealDaysForAdditionalRoles(deal: Deal, additionalRoles: string[]): Deal {
+  let next: Deal = { ...deal, additionalRoles };
+  for (const v of additionalRoles) {
+    if (!v) continue;
+    const mode = getRoleDayMode(v);
+    if (
+      (mode === "production" || mode === "dual") &&
+      next.shootDays <= 0 &&
+      dealNeedsShootDays(next)
+    ) {
+      next = { ...next, shootDays: 1 };
+    }
+    if (
+      (mode === "post" || mode === "design") &&
+      next.editDays <= 0 &&
+      dealNeedsEditDays(next)
+    ) {
+      next = { ...next, editDays: 1 };
+    }
+  }
+  return next;
+}
+
+function getAdditionalSelfRoleDayRate(
+  profile: Profile,
+  role: string,
+  deal: Deal,
+  isUnion: boolean,
+  matchUnionRates: boolean,
+): number {
+  const full = getAdjustedRoleDayRate(profile, role, deal, isUnion, matchUnionRates);
+  const mult = getAdditionalRoleChargeMult(deal);
+  return Math.round((full * mult) / 25) * 25;
+}
+
 function getAdjustedRoleDayRate(
   profile: Profile,
   role: string,
@@ -1460,6 +1498,143 @@ function AdditionalCrewPicker({
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function AdditionalRolesPicker({
+  roles,
+  onRolesChange,
+  chargePct,
+  onChargePctChange,
+  deal,
+  profile,
+  isUnion,
+  matchUnionRates,
+  primaryRole,
+}: {
+  roles: string[];
+  onRolesChange: (roles: string[]) => void;
+  chargePct: 50 | 60 | 75;
+  onChargePctChange: (pct: 50 | 60 | 75) => void;
+  deal: Deal;
+  profile: Profile;
+  isUnion: boolean;
+  matchUnionRates: boolean;
+  primaryRole: string;
+}) {
+  const [pickRole, setPickRole] = useState("");
+  const previewDeal = withLivePreviewDays(deal);
+  const atMax = roles.length >= MAX_ADDITIONAL_SELF_ROLES;
+
+  const addRole = (role: string) => {
+    if (!role || role === primaryRole || roles.includes(role) || atMax) return;
+    onRolesChange([...roles, role]);
+    setPickRole("");
+  };
+
+  const removeRole = (role: string) => {
+    onRolesChange(roles.filter((r) => r !== role));
+  };
+
+  const excludeRoles = [primaryRole, ...roles].filter(Boolean);
+
+  return (
+    <div>
+      <RoleSearchInput
+        value={pickRole}
+        onChange={addRole}
+        placeholder={
+          atMax
+            ? `Maximum ${MAX_ADDITIONAL_SELF_ROLES} additional roles`
+            : "Search roles you also perform… e.g. Editor, Colorist"
+        }
+        excludeRoles={excludeRoles}
+      />
+      <p className="helper" style={{ marginTop: 6 }}>
+        Add every hat you wear on this job besides your primary position. Each bills at the rate below (not full day
+        rate). Production roles use shoot days; post and design use edit days.
+      </p>
+
+      {roles.length > 0 && (
+        <>
+          <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+            {roles.map((role) => {
+              const mode = getRoleDayMode(role);
+              const charged = getAdditionalSelfRoleDayRate(
+                profile,
+                role,
+                deal,
+                isUnion,
+                matchUnionRates,
+              );
+              const full = getAdjustedRoleDayRate(profile, role, deal, isUnion, matchUnionRates);
+              const days =
+                mode === "post" || mode === "design"
+                  ? previewDeal.editDays
+                  : previewDeal.shootDays;
+              const phase =
+                mode === "post" || mode === "design"
+                  ? "edit"
+                  : mode === "dual"
+                    ? "shoot + edit"
+                    : "shoot";
+              return (
+                <div
+                  key={role}
+                  style={{
+                    padding: "12px 12px 10px",
+                    borderRadius: 12,
+                    border: "1px solid rgba(232,197,122,0.22)",
+                    background: "rgba(232,197,122,0.04)",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{role}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-3)" }}>
+                        ${fmt(charged)}/day ({chargePct}% of ${fmt(full)}) · {days} {phase} day
+                        {days !== 1 ? "s" : ""}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeRole(role)}
+                      aria-label={`Remove ${role}`}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "var(--text-3)",
+                        cursor: "pointer",
+                        fontSize: 18,
+                        lineHeight: 1,
+                        padding: 4,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            <label style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 8, display: "block" }}>
+              Rate for all additional roles (primary stays full)
+            </label>
+            <Seg
+              options={ADDITIONAL_ROLE_CHARGE_OPTIONS}
+              value={String(chargePct)}
+              onChange={(v) => onChargePctChange(Number(v) as 50 | 60 | 75)}
+            />
+            <p className="helper" style={{ marginTop: 8, marginBottom: 0 }}>
+              Your primary position is always full MIMS day rate. Every role above bills at {chargePct}% of that
+              role&apos;s day rate. 75% is client-friendly; 50% is aggressive when you stack many hats.
+            </p>
+          </div>
+        </>
       )}
     </div>
   );
@@ -2391,7 +2566,7 @@ function buildSowRoles(deal: Deal, profile: Profile): SowRoleRow[] {
       roles.push({
         id: rid,
         label: rl.label,
-        note: `Additional role · ${deal.additionalRoleChargePct ?? 75}% of day rate`,
+        note: `Additional role · ${deal.additionalRoleChargePct ?? 75}% of catalog day rate`,
       });
     }
   });
@@ -3344,7 +3519,7 @@ function ExtraScreens({
             const primaryFullDay = deal.dealRole
               ? getAdjustedRoleDayRate(profile, deal.dealRole, deal, isUnion, matchUnionRates)
               : laborDayRate;
-            const crewRateLines: { role: string; rate: number; kind: "primary" | "secondary" }[] = [];
+            const crewRateLines: { role: string; rate: number; kind: "primary" | "additional" }[] = [];
             if (deal.dealRole) {
               crewRateLines.push({
                 role: deal.dealRole,
@@ -3352,16 +3527,14 @@ function ExtraScreens({
                 kind: "primary",
               });
             }
-            const addMult = getAdditionalRoleChargeMult(deal);
             for (const role of additionalRoles) {
-              const full = getAdjustedRoleDayRate(profile, role, deal, isUnion, matchUnionRates);
               crewRateLines.push({
                 role,
-                rate: Math.round((full * addMult) / 25) * 25,
-                kind: "secondary",
+                rate: getAdditionalSelfRoleDayRate(profile, role, deal, isUnion, matchUnionRates),
+                kind: "additional",
               });
             }
-            const hasSecondaryRole = crewRateLines.some((l) => l.kind === "secondary");
+            const hasAdditionalRoles = additionalRoles.length > 0;
             const usingPreviewDays =
               deal.pricingMode !== "project" &&
               (deal.shootDays <= 0 || deal.editDays <= 0) &&
@@ -3401,21 +3574,21 @@ function ExtraScreens({
                 {/* Primary / base rate column */}
                 <div style={{ flexShrink: 0 }}>
                   <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--text-3)", marginBottom: 4 }}>
-                    {hasSecondaryRole ? "Primary rate" : "Base Rate"}
+                    {hasAdditionalRoles ? "Primary rate" : "Base Rate"}
                   </div>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
                     <span style={{ fontSize: 18, fontWeight: 700, color: "var(--gold)", letterSpacing: "-0.02em", lineHeight: 1 }}>
-                      ${fmt(hasSecondaryRole ? primaryFullDay : baseDay)}
+                      ${fmt(hasAdditionalRoles ? primaryFullDay : baseDay)}
                     </span>
                     <span style={{ fontSize: 10, color: "var(--text-3)", fontWeight: 500 }}>/day</span>
-                    {hasSecondaryRole ? (
+                    {hasAdditionalRoles ? (
                       <span style={{ fontSize: 9, color: "var(--text-3)", fontWeight: 600, marginLeft: 4 }}>full</span>
                     ) : null}
                   </div>
-                  {hasSecondaryRole ? (
+                  {hasAdditionalRoles ? (
                     <div style={{ marginTop: 4, fontSize: 10, color: "var(--text-3)", lineHeight: 1.45 }}>
                       {crewRateLines
-                        .filter((line) => line.kind === "secondary")
+                        .filter((line) => line.kind === "additional")
                         .map((line) => (
                           <div key={line.role}>
                             {line.role}: ${fmt(line.rate)}/day ({deal.additionalRoleChargePct ?? 75}% of day rate)
@@ -3559,6 +3732,7 @@ function ExtraScreens({
                     setDeal((d) => ({
                       ...d,
                       dealRole: v,
+                      additionalRoles: (d.additionalRoles ?? []).filter((r) => r && r !== v),
                       pricingMode: eligible ? d.pricingMode : "days",
                       ...flatDefaults,
                       shootDays:
@@ -3571,62 +3745,26 @@ function ExtraScreens({
               </div>
 
               <div className="field">
-                <label>Additional role (optional)</label>
-                <RoleSearchInput
-                  value={(deal.additionalRoles ?? [])[0] ?? ""}
-                  onChange={(v) =>
-                    setDeal((d) => {
-                      const additionalRoles = v ? [v] : [];
-                      const next = { ...d, additionalRoles };
-                      if (v) {
-                        const mode = getRoleDayMode(v);
-                        if (
-                          (mode === "production" || mode === "dual") &&
-                          next.shootDays <= 0 &&
-                          dealNeedsShootDays(next)
-                        ) {
-                          next.shootDays = 1;
-                        }
-                        if (
-                          (mode === "post" || mode === "design") &&
-                          next.editDays <= 0 &&
-                          dealNeedsEditDays(next)
-                        ) {
-                          next.editDays = 1;
-                        }
-                      }
-                      return next;
-                    })
-                  }
-                  placeholder="Search another position… e.g. Editor, Director"
-                  allowClear
-                  excludeRole={deal.dealRole}
-                />
-                <p className="helper">
-                  Your primary position above always bills at full MIMS day rate. Only this second role can be priced at
-                  50%, 60%, or 75% of rate. Production roles bill per shoot day; post roles bill per edit day.
+                <label>Additional roles (optional)</label>
+                <p className="helper" style={{ marginTop: 0, marginBottom: 10 }}>
+                  Hats you wear beyond your primary position — e.g. Cinematographer plus Editor and Colorist. Primary
+                  always bills at full rate; roles you add here use the percentage below.
                 </p>
-                {(deal.additionalRoles ?? [])[0] ? (
-                  <div style={{ marginTop: 12 }}>
-                    <label style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 8, display: "block" }}>
-                      Secondary role rate (primary stays full)
-                    </label>
-                    <Seg
-                      options={ADDITIONAL_ROLE_CHARGE_OPTIONS}
-                      value={String(deal.additionalRoleChargePct ?? 75)}
-                      onChange={(v) =>
-                        setDeal((d) => ({
-                          ...d,
-                          additionalRoleChargePct: Number(v) as 50 | 60 | 75,
-                        }))
-                      }
-                    />
-                    <p className="helper" style={{ marginTop: 8, marginBottom: 0 }}>
-                      Does not change your primary rate. Bills the additional role at {deal.additionalRoleChargePct}% of
-                      its MIMS day rate (before days × rate). 75% is the most client-friendly default; 50% is aggressive.
-                    </p>
-                  </div>
-                ) : null}
+                <AdditionalRolesPicker
+                  roles={(deal.additionalRoles ?? []).filter(Boolean)}
+                  onRolesChange={(additionalRoles) =>
+                    setDeal((d) => bumpDealDaysForAdditionalRoles(d, additionalRoles))
+                  }
+                  chargePct={deal.additionalRoleChargePct ?? 75}
+                  onChargePctChange={(additionalRoleChargePct) =>
+                    setDeal((d) => ({ ...d, additionalRoleChargePct }))
+                  }
+                  deal={deal}
+                  profile={profile}
+                  isUnion={isUnion}
+                  matchUnionRates={matchUnionRates}
+                  primaryRole={deal.dealRole}
+                />
               </div>
 
               <div className="field">
