@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "generate-rates-pdf": "node scripts/generate-role-rates-pdf.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^2.1.143",
@@ -24,6 +25,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "pdfkit": "^0.18.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

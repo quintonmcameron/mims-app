@@ -109,6 +109,8 @@ interface Deal {
   scopeServices: string[];
   dealRole: string;
   additionalRoles: string[];
+  /** Secondary role billed at this % of catalog day rate (50 / 60 / 75). */
+  additionalRoleChargePct: 50 | 60 | 75;
   additionalCrew: AdditionalCrewEntry[];
   kitFee: string;
   kitFeeCustom: string;
@@ -253,6 +255,7 @@ const defaultDeal: Deal = {
   scopeServices: [],
   dealRole: "",
   additionalRoles: [],
+  additionalRoleChargePct: 75,
   additionalCrew: [],
   kitFee: "",
   kitFeeCustom: "",
@@ -442,11 +445,17 @@ function computeRecommendation(
   const additionalRoleLines: AdditionalRoleLine[] = [];
   let additionalRolesTotal = 0;
 
+  const additionalRoleMult = getAdditionalRoleChargeMult(deal);
+
   if (!isProjectRate) for (const role of deal.additionalRoles ?? []) {
-    if (!role) continue;
+    if (!role || role === deal.dealRole) continue;
     const mode = getRoleDayMode(role);
-    const roleDay =
-      getEstimatedBaseDayRate(profile, role, isUnion, matchUnionRates) * multipliers;
+    const roleDay = Math.round(
+      (getEstimatedBaseDayRate(profile, role, isUnion, matchUnionRates) *
+        multipliers *
+        additionalRoleMult) /
+        25,
+    ) * 25;
 
     if (mode === "post" || mode === "design") {
       const subtotal = deal.editDays * roleDay;
@@ -1026,6 +1035,60 @@ function getRoleDayMode(role: string): DayMode {
   return "production";
 }
 
+function dealNeedsShootDays(deal: Deal): boolean {
+  const primary = deal.dealRole || "";
+  const primaryMode = primary ? getRoleDayMode(primary) : null;
+  if (primaryMode === "production" || primaryMode === "dual") return true;
+  return (deal.additionalRoles ?? []).some((role) => {
+    if (!role) return false;
+    const m = getRoleDayMode(role);
+    return m === "production" || m === "dual";
+  });
+}
+
+function dealNeedsEditDays(deal: Deal): boolean {
+  const primary = deal.dealRole || "";
+  const primaryMode = primary ? getRoleDayMode(primary) : null;
+  if (primaryMode === "post" || primaryMode === "design" || primaryMode === "dual") return true;
+  return (deal.additionalRoles ?? []).some((role) => {
+    if (!role) return false;
+    const m = getRoleDayMode(role);
+    return m === "post" || m === "design";
+  });
+}
+
+/** Minimum 1 day on each phase so live estimate includes additional roles before days are set. */
+function withLivePreviewDays(deal: Deal): Deal {
+  if (deal.pricingMode === "project") return deal;
+  let shootDays = deal.shootDays;
+  let editDays = deal.editDays;
+  if (dealNeedsShootDays(deal) && shootDays <= 0) shootDays = 1;
+  if (dealNeedsEditDays(deal) && editDays <= 0) editDays = 1;
+  if (shootDays === deal.shootDays && editDays === deal.editDays) return deal;
+  return { ...deal, shootDays, editDays };
+}
+
+function getAdditionalRoleChargeMult(deal: Deal): number {
+  const pct = deal.additionalRoleChargePct ?? 75;
+  return pct / 100;
+}
+
+function getAdjustedRoleDayRate(
+  profile: Profile,
+  role: string,
+  deal: Deal,
+  isUnion = false,
+  matchUnionRates = false,
+): number {
+  const base = getEstimatedBaseDayRate(profile, role, isUnion, matchUnionRates);
+  const extrasMult = 1 + Math.min(profile.extras.length, 4) * 0.04;
+  const locationMult = getLocationMarketMultiplier(profile.location);
+  const rushPremium = ({ loose: 0, normal: 0, rush: 0.25, fire: 0.5 } as Record<string, number>)[deal.rush] || 0;
+  const usagePremium = ({ organic: 0, paid: 0.25, broadcast: 0.5 } as Record<string, number>)[deal.usage] || 0;
+  const premiumLoading = Math.min(rushPremium + usagePremium, 0.5);
+  return Math.round((base * extrasMult * locationMult * (1 + premiumLoading)) / 25) * 25;
+}
+
 function getAdditionalCrewDayCount(mode: DayMode, deal: Deal): number {
   if (mode === "post" || mode === "design") return Math.max(deal.editDays, 1);
   if (mode === "dual") return Math.max(deal.shootDays + deal.editDays, 1);
@@ -1066,6 +1129,12 @@ const ADDITIONAL_ROLE_OPTIONS = MIMS_ROLES.map((role) => ({
   id: role,
   label: role,
 }));
+
+const ADDITIONAL_ROLE_CHARGE_OPTIONS = [
+  { id: "50", label: "50% of day rate" },
+  { id: "60", label: "60% of day rate" },
+  { id: "75", label: "75% of day rate" },
+];
 
 const LOADING_STEPS = [
   "Pulling 2026 rate benchmarks…",
@@ -2313,11 +2382,18 @@ function buildSowLineItems(deal: Deal, result: Recommendation | null, profile: P
 function buildSowRoles(deal: Deal, profile: Profile): SowRoleRow[] {
   const primaryRole = deal.dealRole || profile.trade || "Creative";
   const roles: SowRoleRow[] = [
-    { id: "primary", label: primaryRole, note: "Primary" },
+    { id: "primary", label: primaryRole, note: "Primary · full day rate" },
   ];
   (deal.additionalRoles ?? []).forEach((rid) => {
+    if (!rid || rid === deal.dealRole) return;
     const rl = ADDITIONAL_ROLE_OPTIONS.find((r) => r.id === rid);
-    if (rl) roles.push({ id: rid, label: rl.label, note: "Additional role" });
+    if (rl) {
+      roles.push({
+        id: rid,
+        label: rl.label,
+        note: `Additional role · ${deal.additionalRoleChargePct ?? 75}% of day rate`,
+      });
+    }
   });
   return roles;
 }
@@ -3130,7 +3206,7 @@ function ExtraScreens({
   }), [deal, intelWhy, intelCompanySize, intelAnnualRevenue, intelLtv, intelRoi, intelBudget]);
 
   const liveEstimate = useMemo(
-    () => computeRecommendation(profile, liveDeal, isUnion, matchUnionRates),
+    () => computeRecommendation(profile, withLivePreviewDays(liveDeal), isUnion, matchUnionRates),
     [profile, liveDeal, isUnion, matchUnionRates]
   );
 
@@ -3252,12 +3328,44 @@ function ExtraScreens({
         <div className="screen-pad" style={{ paddingTop: 0 }}>
           {/* ── Live Price Anchor Tracker ────────────────────── */}
           {(() => {
+            const previewDeal = withLivePreviewDays(liveDeal);
             const pricedDays = dayMode === "production"
-              ? deal.shootDays
+              ? previewDeal.shootDays
               : dayMode === "post" || dayMode === "design"
-                ? deal.editDays
-                : deal.shootDays + deal.editDays;
-            const baseLabor = Math.round(baseDay * pricedDays);
+                ? previewDeal.editDays
+                : previewDeal.shootDays + previewDeal.editDays;
+            const cs = liveEstimate.crewSplit;
+            const laborSubtotal = cs
+              ? cs.productionSubtotal + cs.postSubtotal + cs.additionalRolesTotal + cs.prePro
+              : 0;
+            const additionalRoles = (deal.additionalRoles ?? []).filter(
+              (r) => r && r !== deal.dealRole,
+            );
+            const primaryFullDay = deal.dealRole
+              ? getAdjustedRoleDayRate(profile, deal.dealRole, deal, isUnion, matchUnionRates)
+              : laborDayRate;
+            const crewRateLines: { role: string; rate: number; kind: "primary" | "secondary" }[] = [];
+            if (deal.dealRole) {
+              crewRateLines.push({
+                role: deal.dealRole,
+                rate: primaryFullDay,
+                kind: "primary",
+              });
+            }
+            const addMult = getAdditionalRoleChargeMult(deal);
+            for (const role of additionalRoles) {
+              const full = getAdjustedRoleDayRate(profile, role, deal, isUnion, matchUnionRates);
+              crewRateLines.push({
+                role,
+                rate: Math.round((full * addMult) / 25) * 25,
+                kind: "secondary",
+              });
+            }
+            const hasSecondaryRole = crewRateLines.some((l) => l.kind === "secondary");
+            const usingPreviewDays =
+              deal.pricingMode !== "project" &&
+              (deal.shootDays <= 0 || deal.editDays <= 0) &&
+              (previewDeal.shootDays !== deal.shootDays || previewDeal.editDays !== deal.editDays);
             const pricedDayLabel = Number.isInteger(pricedDays) ? pricedDays.toString() : pricedDays.toFixed(1);
             const pills = ([
               deal.rush === "rush"         && { l: "RUSH",  bg: "rgba(255,181,71,.12)",  bd: "rgba(255,181,71,.35)",  c: "#ffb547" },
@@ -3271,6 +3379,7 @@ function ExtraScreens({
               intelWhy === "brand-relaunch"     && { l: "BRAND", bg: "rgba(94,226,160,.12)",  bd: "rgba(94,226,160,.35)",  c: "#5ee2a0" },
               intelWhy === "campaign-window"    && { l: "CAMP",  bg: "rgba(255,181,71,.12)",  bd: "rgba(255,181,71,.35)",  c: "#ffb547" },
               (deal.shootDays > 0 && deal.editDays > 0) && { l: "DUAL", bg: "rgba(94,226,160,.12)", bd: "rgba(94,226,160,.35)", c: "#5ee2a0" },
+              additionalRoles.length > 0 && { l: `+${additionalRoles.length} ROLE`, bg: "rgba(232,197,122,.12)", bd: "rgba(232,197,122,.35)", c: "#e8c57a" },
             ] as (false | { l: string; bg: string; bd: string; c: string })[]).filter((p): p is { l: string; bg: string; bd: string; c: string } => !!p);
 
             return (
@@ -3289,20 +3398,35 @@ function ExtraScreens({
                 alignItems: "center",
                 gap: 12,
               }}>
-                {/* Base rate column */}
+                {/* Primary / base rate column */}
                 <div style={{ flexShrink: 0 }}>
                   <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--text-3)", marginBottom: 4 }}>
-                    Base Rate
+                    {hasSecondaryRole ? "Primary rate" : "Base Rate"}
                   </div>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
                     <span style={{ fontSize: 18, fontWeight: 700, color: "var(--gold)", letterSpacing: "-0.02em", lineHeight: 1 }}>
-                      ${fmt(baseDay)}
+                      ${fmt(hasSecondaryRole ? primaryFullDay : baseDay)}
                     </span>
                     <span style={{ fontSize: 10, color: "var(--text-3)", fontWeight: 500 }}>/day</span>
+                    {hasSecondaryRole ? (
+                      <span style={{ fontSize: 9, color: "var(--text-3)", fontWeight: 600, marginLeft: 4 }}>full</span>
+                    ) : null}
                   </div>
-                  {pricedDays > 0 && (
+                  {hasSecondaryRole ? (
+                    <div style={{ marginTop: 4, fontSize: 10, color: "var(--text-3)", lineHeight: 1.45 }}>
+                      {crewRateLines
+                        .filter((line) => line.kind === "secondary")
+                        .map((line) => (
+                          <div key={line.role}>
+                            {line.role}: ${fmt(line.rate)}/day ({deal.additionalRoleChargePct ?? 75}% of day rate)
+                          </div>
+                        ))}
+                    </div>
+                  ) : null}
+                  {pricedDays > 0 && laborSubtotal > 0 && (
                     <div style={{ marginTop: 4, fontSize: 10, color: "var(--text-3)", whiteSpace: "nowrap" }}>
-                      {pricedDayLabel} day{pricedDays === 1 ? "" : "s"} = ${fmt(baseLabor)}
+                      {pricedDayLabel} day{pricedDays === 1 ? "" : "s"}
+                      {usingPreviewDays ? " (preview)" : ""} · labor ${fmt(laborSubtotal)}
                     </div>
                   )}
                 </div>
@@ -3437,8 +3561,10 @@ function ExtraScreens({
                       dealRole: v,
                       pricingMode: eligible ? d.pricingMode : "days",
                       ...flatDefaults,
-                      shootDays: mode === "post" || mode === "design" ? 0 : d.shootDays,
-                      editDays: mode === "production" ? 0 : d.editDays,
+                      shootDays:
+                        mode === "post" || mode === "design" ? 0 : d.shootDays > 0 ? d.shootDays : 1,
+                      editDays:
+                        mode === "production" ? 0 : d.editDays > 0 ? d.editDays : mode === "dual" ? 0 : 1,
                     }));
                   }}
                 />
@@ -3449,19 +3575,58 @@ function ExtraScreens({
                 <RoleSearchInput
                   value={(deal.additionalRoles ?? [])[0] ?? ""}
                   onChange={(v) =>
-                    setDeal((d) => ({
-                      ...d,
-                      additionalRoles: v ? [v] : [],
-                    }))
+                    setDeal((d) => {
+                      const additionalRoles = v ? [v] : [];
+                      const next = { ...d, additionalRoles };
+                      if (v) {
+                        const mode = getRoleDayMode(v);
+                        if (
+                          (mode === "production" || mode === "dual") &&
+                          next.shootDays <= 0 &&
+                          dealNeedsShootDays(next)
+                        ) {
+                          next.shootDays = 1;
+                        }
+                        if (
+                          (mode === "post" || mode === "design") &&
+                          next.editDays <= 0 &&
+                          dealNeedsEditDays(next)
+                        ) {
+                          next.editDays = 1;
+                        }
+                      }
+                      return next;
+                    })
                   }
                   placeholder="Search another position… e.g. Editor, Director"
                   allowClear
                   excludeRole={deal.dealRole}
                 />
                 <p className="helper">
-                  Bill each extra role at its own day rate. Production roles (Director, DP, etc.) charge per shoot day.
-                  Post roles (Editor, Colorist, etc.) charge per edit day.
+                  Your primary position above always bills at full MIMS day rate. Only this second role can be priced at
+                  50%, 60%, or 75% of rate. Production roles bill per shoot day; post roles bill per edit day.
                 </p>
+                {(deal.additionalRoles ?? [])[0] ? (
+                  <div style={{ marginTop: 12 }}>
+                    <label style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 8, display: "block" }}>
+                      Secondary role rate (primary stays full)
+                    </label>
+                    <Seg
+                      options={ADDITIONAL_ROLE_CHARGE_OPTIONS}
+                      value={String(deal.additionalRoleChargePct ?? 75)}
+                      onChange={(v) =>
+                        setDeal((d) => ({
+                          ...d,
+                          additionalRoleChargePct: Number(v) as 50 | 60 | 75,
+                        }))
+                      }
+                    />
+                    <p className="helper" style={{ marginTop: 8, marginBottom: 0 }}>
+                      Does not change your primary rate. Bills the additional role at {deal.additionalRoleChargePct}% of
+                      its MIMS day rate (before days × rate). 75% is the most client-friendly default; 50% is aggressive.
+                    </p>
+                  </div>
+                ) : null}
               </div>
 
               <div className="field">
