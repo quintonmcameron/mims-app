@@ -17,8 +17,9 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   applicationName: "MIMS",
-  title: "MIMS — Your negotiation co-pilot",
-  description: "Your AI co-pilot for freelance negotiations.",
+  title: "MIMS — Freelance pricing & deal estimates",
+  description:
+    "Educational pricing and deal-prep estimates for independent creative freelancers — not legal or contract advice.",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/mims-icon.svg",

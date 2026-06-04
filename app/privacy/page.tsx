@@ -1,3 +1,10 @@
+import {
+  LEGAL_CONTACT_EMAIL,
+  LEGAL_LAST_UPDATED,
+  LEGAL_OPERATOR_NAME,
+  LEGAL_VERSION,
+} from "@/lib/mims/legal";
+
 const sectionStyle = {
   marginTop: 28,
 } as const;
@@ -37,55 +44,111 @@ export default function PrivacyPage() {
           Privacy Policy
         </h1>
         <p style={{ ...textStyle, marginTop: 16 }}>
-          Last updated: May 18, 2026
+          Last updated: {LEGAL_LAST_UPDATED} · Version {LEGAL_VERSION}
         </p>
 
         <section style={sectionStyle}>
           <h2 style={headingStyle}>1. Information You Enter</h2>
           <p style={textStyle}>
-            MIMS may ask for profile details, creative roles, city, project details, client website or social links, public footprint signals, professional highlights, budget notes, and deal details. This information is used to generate pricing estimates, deal guidance, invoice previews, and scope suggestions.
+            MIMS may ask for profile details, creative roles, city, project details, client names, client website or
+            social links, public footprint signals, professional highlights, budget notes, and deal details. This
+            information is used to generate pricing estimates, deal guidance, invoice previews, and scope suggestions.
           </p>
         </section>
 
         <section style={sectionStyle}>
-          <h2 style={headingStyle}>2. Current Local Storage</h2>
+          <h2 style={headingStyle}>2. Client &amp; Third-Party Information</h2>
           <p style={textStyle}>
-            In the current version, MIMS is designed as a lightweight prototype and may store onboarding status or app state locally in your browser. Local browser storage stays on that device unless future account, database, or sync features are added.
+            When you enter a client name, URL, budget, or social signals, you are providing business information about
+            that party. You are responsible for having a lawful basis to use that information in your work. MIMS does
+            not automatically scrape or download client websites on your behalf in the current version; signals are based
+            on what you type or select. Do not enter sensitive personal data (health, government IDs, etc.) unless
+            necessary for your project.
           </p>
         </section>
 
         <section style={sectionStyle}>
-          <h2 style={headingStyle}>3. Future Accounts and Payments</h2>
+          <h2 style={headingStyle}>3. Local Storage on Your Device</h2>
           <p style={textStyle}>
-            If MIMS later adds user accounts, subscriptions, saved profiles, saved deals, or payments, the app may collect account information, billing status, and saved business inputs. Payment card details should be handled by a payment processor such as Stripe, not stored directly by MIMS.
+            In the current version, MIMS stores onboarding status, legal acceptance version and date, and app state in
+            your browser&apos;s local storage. This data stays on your device unless future account, database, or sync
+            features are added.
           </p>
         </section>
 
         <section style={sectionStyle}>
-          <h2 style={headingStyle}>4. Analytics and Error Tracking</h2>
+          <h2 style={headingStyle}>4. Analytics (Vercel Analytics)</h2>
           <p style={textStyle}>
-            If analytics or error tracking tools are added, MIMS may collect usage events, device information, browser details, page views, and error logs to improve performance and fix bugs. Sensitive project details should not be intentionally sent to analytics tools.
+            MIMS uses Vercel Analytics to collect limited usage data such as page views, referrers, browser type, device
+            type, and general geography. This helps us understand how the app is used and improve reliability. Vercel
+            processes this data as our hosting and analytics provider. We do not intentionally send your deal details,
+            client names, or project notes to analytics. For more information, see Vercel&apos;s privacy documentation.
           </p>
         </section>
 
         <section style={sectionStyle}>
-          <h2 style={headingStyle}>5. Public Links and Social Signals</h2>
+          <h2 style={headingStyle}>5. Future Accounts and Payments</h2>
           <p style={textStyle}>
-            Website and social media inputs are treated as user-provided business signals. Follower counts, audience size, brand maturity, and price point are used only as rough indicators, not official proof of budget or buying power.
+            If MIMS later adds user accounts, subscriptions, saved profiles, saved deals, or payments, the app may
+            collect account information, billing status, and saved business inputs. Payment card details should be
+            handled by a payment processor such as Stripe, not stored directly by MIMS.
           </p>
         </section>
 
         <section style={sectionStyle}>
-          <h2 style={headingStyle}>6. Data Sharing</h2>
+          <h2 style={headingStyle}>6. Public Links and Social Signals</h2>
           <p style={textStyle}>
-            MIMS should not sell personal information. If third-party tools are added for hosting, analytics, authentication, payments, database storage, or email, those providers may process information as needed to run the service.
+            Website and social media inputs are treated as user-provided business signals. Audience size, brand maturity,
+            and price point are rough indicators only, not verified proof of budget or buying power.
           </p>
         </section>
 
         <section style={sectionStyle}>
-          <h2 style={headingStyle}>7. Your Choices</h2>
+          <h2 style={headingStyle}>7. Retention</h2>
           <p style={textStyle}>
-            You can avoid entering sensitive information, clear your browser storage, or stop using the app at any time. If accounts are added later, MIMS should provide a way to request access, correction, or deletion of saved account data.
+            Data in local storage remains until you clear your browser data or uninstall the app. Analytics retention is
+            governed by Vercel&apos;s policies. If we add cloud accounts later, we will describe retention and deletion
+            in an updated policy.
+          </p>
+        </section>
+
+        <section style={sectionStyle}>
+          <h2 style={headingStyle}>8. Data Sharing</h2>
+          <p style={textStyle}>
+            MIMS does not sell your personal information. We use service providers (such as Vercel for hosting and
+            analytics) that process information as needed to operate the service. We may disclose information if required
+            by law or to protect rights and safety.
+          </p>
+        </section>
+
+        <section style={sectionStyle}>
+          <h2 style={headingStyle}>9. Children</h2>
+          <p style={textStyle}>
+            MIMS is not directed to anyone under 18. We do not knowingly collect information from children.
+          </p>
+        </section>
+
+        <section style={sectionStyle}>
+          <h2 style={headingStyle}>10. Your Choices</h2>
+          <p style={textStyle}>
+            You can avoid entering sensitive information, clear your browser storage, or stop using the app at any time.
+            You may use browser privacy settings or extensions to limit analytics where available. Questions or requests:{" "}
+            {LEGAL_CONTACT_EMAIL}.
+          </p>
+        </section>
+
+        <section style={sectionStyle}>
+          <h2 style={headingStyle}>11. Changes</h2>
+          <p style={textStyle}>
+            We may update this policy as features change. The version date above will reflect material updates. The app
+            may prompt you to re-accept when the legal version changes.
+          </p>
+        </section>
+
+        <section style={sectionStyle}>
+          <h2 style={headingStyle}>12. Contact</h2>
+          <p style={textStyle}>
+            Privacy questions: {LEGAL_CONTACT_EMAIL}. Operator: {LEGAL_OPERATOR_NAME}.
           </p>
         </section>
       </article>

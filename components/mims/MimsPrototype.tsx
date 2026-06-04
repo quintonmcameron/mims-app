@@ -216,7 +216,7 @@ export default function MimsPrototype() {
                 Close the deal.
               </h1>
               <p className="muted" style={{ margin: "14px 0 0", fontSize: 15 }}>
-                Your AI co-pilot for freelance negotiations.
+                Educational pricing and deal-prep estimates for freelancers.
                 <br />
                 Built for the people doing the work.
               </p>
@@ -225,7 +225,7 @@ export default function MimsPrototype() {
               {[
                 {
                   title: "Fair-market rate, not friend pricing",
-                  desc: "Real benchmarks for your trade, experience, and city.",
+                  desc: "Freelance market rate estimates for your trade, experience, and city.",
                   icon: (
                     <path d="M12 1v22M5 8h11.5a3.5 3.5 0 010 7H7.5a3.5 3.5 0 000 7H19" />
                   ),

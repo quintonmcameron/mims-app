@@ -14,6 +14,8 @@ import {
   type SetStateAction,
 } from "react";
 
+import { AppLegalDisclaimer } from "@/components/mims/AppLegalDisclaimer";
+import { DocLegalFooter } from "@/components/mims/DocLegalFooter";
 import { FlatRateScopePanel } from "@/components/mims/FlatRateScopePanel";
 import { ProductionBudgetPanel } from "@/components/mims/ProductionBudgetPanel";
 import type { FlatComplexity } from "@/lib/mims/flat-rate-scope";
@@ -23,6 +25,13 @@ import {
   getDefaultFlatScope,
   isFlatRateEligible,
 } from "@/lib/mims/flat-rate-scope";
+import {
+  APP_TAGLINE,
+  LEGAL_VERSION,
+  LOADING_STEPS,
+  needsLegalReacceptance,
+  recordLegalConsent,
+} from "@/lib/mims/legal";
 import {
   getProjectTypeHelper,
   getProjectTypeMultiplier,
@@ -1139,16 +1148,6 @@ const ADDITIONAL_ROLE_CHARGE_OPTIONS = [
   { id: "60", label: "60% of day rate" },
   { id: "75", label: "75% of day rate" },
 ];
-
-const LOADING_STEPS = [
-  "Pulling 2026 rate benchmarks…",
-  "Researching the client…",
-  "Estimating budget capacity…",
-  "Scoring close-likelihood…",
-  "Preparing your deal guidance…",
-];
-
-
 
 const POPULAR_ROLES = POPULAR_MIMS_ROLES;
 
@@ -2426,6 +2425,7 @@ function InvoicePreview({ deal, result, profile, draft }: { deal: Deal; result: 
       >
         {draft.paymentNote || "Payment via ACH or wire. Late fees of 1.5%/mo accrue after 30 days. Project license activates on final payment."}
       </div>
+      <DocLegalFooter />
     </div>
   );
 }
@@ -2658,6 +2658,7 @@ function SowPreview({ draft }: { draft: SowDraft }) {
       <p style={{ fontSize: 12, color: "#444", margin: 0, whiteSpace: "pre-wrap" }}>
         {draft.cancellation || "—"}
       </p>
+      <DocLegalFooter />
     </div>
   );
 }
@@ -4492,9 +4493,7 @@ function ExtraScreens({
               </button>
             </div>
 
-            <p style={{ marginTop: 28, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.04)", fontSize: 11, color: "var(--text-3)", opacity: 0.72, lineHeight: 1.65, textAlign: "center", marginBottom: 0 }}>
-              Disclaimer: MIMS provides educational pricing and deal-prep estimates based on the information entered by the user. Results are not legal, financial, tax, accounting, or contract advice, and they are not a guarantee of what any client will accept. MIMS is for independent freelance professionals only. Review your own agreements, confirm current freelance market requirements when relevant, and use your judgment before sending any quote, invoice, or scope. By using MIMS, you agree to the <a href="/terms" style={{ color: "var(--gold)", textDecoration: "none" }}>Terms</a> and <a href="/privacy" style={{ color: "var(--gold)", textDecoration: "none" }}>Privacy Policy</a>.
-            </p>
+            <AppLegalDisclaimer />
           </div>
 
           {showNegoSheet && result && (
@@ -4748,6 +4747,11 @@ function ExtraScreens({
           <button type="button" className="card" onClick={() => go("welcome")}>
             Re-take questionnaire
           </button>
+          <p className="helper center" style={{ marginTop: 16 }}>
+            <a href="/terms" style={{ color: "var(--gold)", textDecoration: "none" }}>Terms</a>
+            {" · "}
+            <a href="/privacy" style={{ color: "var(--gold)", textDecoration: "none" }}>Privacy Policy</a>
+          </p>
         </div>
         <TabBar active={screen} onNavigate={go} />
       </div>
@@ -4839,6 +4843,10 @@ function ExtraScreens({
               />
             </div>
           </div>
+          <p className="helper" style={{ marginBottom: 10 }}>
+            Preview only. Have an attorney review this invoice before you send it. Sample payment terms below are
+            editable — not legal advice.
+          </p>
           <InvoicePreview deal={deal} result={result} profile={profile} draft={invoiceDraft} />
           {result?.crewSplit && (
             <ProductionBudgetPanel
@@ -5073,6 +5081,10 @@ function ExtraScreens({
               />
             </div>
           </div>
+          <p className="helper" style={{ marginBottom: 10 }}>
+            Preview only. Usage, payment, kill-fee, and cancellation language are draft templates — customize with your
+            lawyer before sending or signing.
+          </p>
           <SowPreview draft={sowDraft} />
           <button type="button" className="btn btn-primary" onClick={() => showToast("SOW signature flow coming soon")}>
             Send for signature
@@ -5128,6 +5140,8 @@ export default function Page() {
   const [intelBudget, setIntelBudget] = useState("");
   const [intelAnnualRevenue, setIntelAnnualRevenue] = useState("");
   const [intelCompanySize, setIntelCompanySize] = useState("");
+  const [needsLegalBanner, setNeedsLegalBanner] = useState(false);
+  const [legalBannerAgreed, setLegalBannerAgreed] = useState(false);
   const displayName = profile.name || "";
   const homeFirst = displayName ? displayName.split(" ")[0] : "";
   const profileRole = [tradeLabel(profile.trade), profile.location].filter(Boolean).join(" · ");
@@ -5207,12 +5221,21 @@ export default function Page() {
         resumeMatchedKeywords: parsedHighlights.matchedKeywords,
       } : {}),
     }));
-    if (typeof window !== "undefined") localStorage.setItem("mimsOnboardingDone", "1");
+    if (typeof window !== "undefined") {
+      localStorage.setItem("mimsOnboardingDone", "1");
+      recordLegalConsent();
+    }
     go("home");
     showToast(hasHighlights ? `Profile saved · Leverage Score ${parsedHighlights.score}/10 applied` : "Profile saved · your fair rate is ready");
   };
 
   const startNewDeal = () => {
+    if (needsLegalReacceptance()) {
+      setNeedsLegalBanner(true);
+      showToast("Please accept the updated Terms and Privacy Policy below");
+      go("home");
+      return;
+    }
     setDeal(defaultDeal);
     setResult(null);
     setRateDetail("");
@@ -5288,7 +5311,12 @@ export default function Page() {
     if (localStorage.getItem("mimsOnboardingDone") === "1") {
       setScreen("home");
     }
+    setNeedsLegalBanner(needsLegalReacceptance());
   }, []);
+
+  useEffect(() => {
+    if (screen === "home") setNeedsLegalBanner(needsLegalReacceptance());
+  }, [screen]);
 
   useEffect(() => {
     const mqWide = window.matchMedia("(min-width: 768px)");
@@ -5387,16 +5415,16 @@ export default function Page() {
                 Close the deal.
               </h1>
               <p className="muted" style={{ margin: "14px 0 0", fontSize: 15 }}>
-                Your AI co-pilot for freelance negotiations.
+                {APP_TAGLINE}
                 <br />
-                Built for the people doing the work.
+                Built for independent freelancers doing the work.
               </p>
             </div>
             <div className="welcome-features">
               {[
                 {
                   title: "Fair-market rate, not friend pricing",
-                  desc: "Real benchmarks for your trade, level, and city.",
+                  desc: "Freelance market rate estimates for your trade, level, and city — not a guarantee.",
                   icon: (
                     <path d="M12 1v22M5 8h11.5a3.5 3.5 0 010 7H7.5a3.5 3.5 0 000 7H19" />
                   ),
@@ -5752,7 +5780,7 @@ export default function Page() {
                     )}
                   </div>
                   <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: setupAgreed ? "var(--text)" : "var(--text-2)", lineHeight: 1.55 }}>
-                    I understand that MIMS provides educational pricing and deal-prep estimates, not legal, financial, tax, accounting, or contract advice. MIMS is for independent freelance work only. I agree to the <a href="/terms" style={{ color: "var(--gold)", textDecoration: "none" }} onClick={(event) => event.stopPropagation()}>Terms</a> and <a href="/privacy" style={{ color: "var(--gold)", textDecoration: "none" }} onClick={(event) => event.stopPropagation()}>Privacy Policy</a>.
+                    I understand that MIMS provides educational pricing and deal-prep estimates only — not legal, financial, tax, accounting, or contract advice, and not a guarantee any client will accept a rate. MIMS is for independent freelance work only. I agree to the <a href="/terms" style={{ color: "var(--gold)", textDecoration: "none" }} onClick={(event) => event.stopPropagation()}>Terms</a> and <a href="/privacy" style={{ color: "var(--gold)", textDecoration: "none" }} onClick={(event) => event.stopPropagation()}>Privacy Policy</a> (version {LEGAL_VERSION}).
                   </p>
                 </button>
 
@@ -5809,6 +5837,80 @@ export default function Page() {
               </p>
               <h1>What are we doing today?</h1>
             </div>
+
+            {needsLegalBanner && (
+              <div
+                className="card home-span-full"
+                style={{ borderColor: "rgba(232,197,122,0.35)", marginBottom: 4 }}
+              >
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Terms updated</div>
+                <p className="muted small" style={{ margin: "0 0 12px", lineHeight: 1.55 }}>
+                  Please confirm you agree to the current Terms and Privacy Policy (version {LEGAL_VERSION}) before
+                  starting a new deal.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setLegalBannerAgreed((v) => !v)}
+                  style={{
+                    display: "flex",
+                    gap: 12,
+                    alignItems: "flex-start",
+                    width: "100%",
+                    background: "transparent",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 6,
+                      flexShrink: 0,
+                      marginTop: 1,
+                      border: legalBannerAgreed ? "none" : "1.5px solid var(--border-2)",
+                      background: legalBannerAgreed ? "var(--grad)" : "transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {legalBannerAgreed ? (
+                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                        <path d="M2 6l3 3 5-5" stroke="#1a1306" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    ) : null}
+                  </div>
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--text-2)", lineHeight: 1.55 }}>
+                    I agree to the{" "}
+                    <a href="/terms" style={{ color: "var(--gold)", textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>
+                      Terms
+                    </a>{" "}
+                    and{" "}
+                    <a href="/privacy" style={{ color: "var(--gold)", textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>
+                      Privacy Policy
+                    </a>
+                    .
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ marginTop: 14 }}
+                  disabled={!legalBannerAgreed}
+                  onClick={() => {
+                    recordLegalConsent();
+                    setNeedsLegalBanner(false);
+                    setLegalBannerAgreed(false);
+                    showToast("Terms accepted");
+                  }}
+                >
+                  Confirm & continue
+                </button>
+              </div>
+            )}
 
             <button
               type="button"
@@ -5888,9 +5990,7 @@ export default function Page() {
             </div>
             </div>
 
-            <p className="home-span-full" style={{ marginTop: 28, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.04)", fontSize: 11, color: "var(--text-3)", opacity: 0.72, lineHeight: 1.65, textAlign: "center", marginBottom: 0 }}>
-              Disclaimer: MIMS provides educational pricing and deal-prep estimates based on the information entered by the user. Results are not legal, financial, tax, accounting, or contract advice, and they are not a guarantee of what any client will accept. MIMS is for independent freelance professionals only. Review your own agreements, confirm current freelance market requirements when relevant, and use your judgment before sending any quote, invoice, or scope. By using MIMS, you agree to the <a href="/terms" style={{ color: "var(--gold)", textDecoration: "none" }}>Terms</a> and <a href="/privacy" style={{ color: "var(--gold)", textDecoration: "none" }}>Privacy Policy</a>.
-            </p>
+            <AppLegalDisclaimer className="home-span-full" style={{ marginTop: 28 }} />
           </div>
           <TabBar active={screen} onNavigate={go} />
         </div>

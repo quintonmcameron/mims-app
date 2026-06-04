@@ -98,7 +98,7 @@ export const DEMO_PROFILE = {
 };
 
 export const LOADING_STEPS = [
-  "Pulling 2026 rate benchmarks…",
+  "Pulling freelance market rate estimates…",
   "Researching the client…",
   "Estimating budget capacity…",
   "Scoring close-likelihood…",
