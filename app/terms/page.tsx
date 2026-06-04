@@ -97,8 +97,9 @@ export default function TermsPage() {
         <section style={sectionStyle}>
           <h2 style={headingStyle}>6. Subscriptions &amp; Automatic Renewal</h2>
           <p style={textStyle}>
-            If MIMS offers paid subscriptions, you will see the subscription price, billing interval, and automatic
-            renewal terms immediately before you pay. Subscriptions renew automatically until you cancel. You may
+            MIMS includes 2 free deal analyses, then a paid subscription (currently $10 per month unless stated
+            otherwise at checkout). You will see the subscription price, billing interval, and automatic renewal terms
+            immediately before you pay. Subscriptions renew automatically until you cancel. You may
             cancel before the next renewal to avoid future charges; cancellation is effective at the end of the current
             paid period unless otherwise stated at checkout. California and other states may require renewal
             reminders — we will provide those where required by law. Refund terms will be stated at checkout and in

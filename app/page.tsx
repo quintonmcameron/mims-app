@@ -17,6 +17,16 @@ import {
 import { AppLegalDisclaimer } from "@/components/mims/AppLegalDisclaimer";
 import { DocLegalFooter } from "@/components/mims/DocLegalFooter";
 import { LegalSiteFooter } from "@/components/mims/LegalSiteFooter";
+import { SubscriptionPanel } from "@/components/mims/SubscriptionPanel";
+import {
+  BILLING_ENFORCEMENT_ENABLED,
+  activateSubscription,
+  billingStatusLabel,
+  canRunDealAnalysis,
+  freeDealsRemaining,
+  hasActiveSubscription,
+  recordCompletedDeal,
+} from "@/lib/mims/billing";
 import { FlatRateScopePanel } from "@/components/mims/FlatRateScopePanel";
 import { ProductionBudgetPanel } from "@/components/mims/ProductionBudgetPanel";
 import type { FlatComplexity } from "@/lib/mims/flat-rate-scope";
@@ -62,6 +72,7 @@ type ScreenId =
   | "deals"
   | "library"
   | "profile"
+  | "subscribe"
   | "invoice"
   | "sow";
 
@@ -4758,6 +4769,7 @@ function ExtraScreens({
             <h2>{displayName || "Your profile"}</h2>
             {profileRole && <p className="muted small">{profileRole}</p>}
           </div>
+          <SubscriptionPanel email={profile.email} showToast={showToast} />
           <button type="button" className="card" onClick={() => go("welcome")}>
             Re-take questionnaire
           </button>
@@ -5132,6 +5144,12 @@ export default function Page() {
   const [isWide, setIsWide] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const analysisDealRef = useRef<Deal>(defaultDeal);
+  const analysisCountedRef = useRef(false);
+  const [billingTick, setBillingTick] = useState(0);
+  const refreshBilling = useCallback(() => setBillingTick((t) => t + 1), []);
+  const billingSubscribed = useMemo(() => hasActiveSubscription(), [billingTick]);
+  const billingFreeRemaining = useMemo(() => freeDealsRemaining(), [billingTick]);
+  const billingLabel = useMemo(() => billingStatusLabel(), [billingTick]);
 
   const [setupName, setSetupName] = useState("");
   const [setupEmail, setSetupEmail] = useState("");
@@ -5243,6 +5261,15 @@ export default function Page() {
     showToast(hasHighlights ? `Profile saved · Leverage Score ${parsedHighlights.score}/10 applied` : "Profile saved · your fair rate is ready");
   };
 
+  const requireSubscriptionOr = (next: () => void) => {
+    if (!canRunDealAnalysis()) {
+      showToast("Subscribe for $10/month to run more deal analyses");
+      go("subscribe");
+      return;
+    }
+    next();
+  };
+
   const startNewDeal = () => {
     if (needsLegalReacceptance()) {
       setNeedsLegalBanner(true);
@@ -5250,6 +5277,7 @@ export default function Page() {
       go("home");
       return;
     }
+    requireSubscriptionOr(() => {
     setDeal(defaultDeal);
     setResult(null);
     setRateDetail("");
@@ -5261,6 +5289,7 @@ export default function Page() {
     setIntelCompanySize("");
     setDealStep(1);
     go("new-deal");
+    });
   };
 
   const dealNext = () => {
@@ -5274,6 +5303,12 @@ export default function Page() {
   const dealBack = () => setDealStep((s) => Math.max(1, s - 1));
 
   const runAnalysis = () => {
+    if (!canRunDealAnalysis()) {
+      showToast("Subscribe for $10/month to run more deal analyses");
+      go("subscribe");
+      return;
+    }
+    analysisCountedRef.current = false;
     const nextDeal: Deal = {
       ...deal,
       why: intelWhy,
@@ -5304,6 +5339,14 @@ export default function Page() {
         timeouts.push(
           setTimeout(() => {
             applyResult(computeRecommendation(profile, analysisDealRef.current));
+            if (BILLING_ENFORCEMENT_ENABLED && !analysisCountedRef.current) {
+              analysisCountedRef.current = true;
+              const count = recordCompletedDeal();
+              refreshBilling();
+              if (!hasActiveSubscription() && count === 2) {
+                showToast("That was your last free deal — subscribe to keep going");
+              }
+            }
             go("deal-result");
           }, 350),
         );
@@ -5312,7 +5355,7 @@ export default function Page() {
 
     timeouts.push(setTimeout(tick, 0));
     return () => timeouts.forEach(clearTimeout);
-  }, [screen, profile, deal, applyResult, go]);
+  }, [screen, profile, deal, applyResult, go, refreshBilling, showToast]);
 
   useEffect(
     () => () => {
@@ -5326,7 +5369,47 @@ export default function Page() {
       setScreen("home");
     }
     setNeedsLegalBanner(needsLegalReacceptance());
-  }, []);
+    refreshBilling();
+  }, [refreshBilling]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+    if (params.get("checkout") !== "success" || !sessionId) return;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/stripe/session?session_id=${encodeURIComponent(sessionId)}`);
+        const data = (await res.json()) as {
+          active?: boolean;
+          currentPeriodEnd?: string;
+          stripeSubscriptionId?: string;
+          stripeCustomerId?: string;
+          error?: string;
+        };
+        if (data.active) {
+          activateSubscription({
+            currentPeriodEnd: data.currentPeriodEnd,
+            stripeSubscriptionId: data.stripeSubscriptionId,
+            stripeCustomerId: data.stripeCustomerId,
+          });
+          refreshBilling();
+          showToast("Subscription active — unlimited deals");
+          go("home");
+        } else {
+          showToast(data.error ?? "Could not confirm subscription");
+        }
+      } catch {
+        showToast("Could not verify checkout");
+      } finally {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("checkout");
+        url.searchParams.delete("session_id");
+        window.history.replaceState({}, "", url.pathname + url.search);
+      }
+    })();
+  }, [go, refreshBilling, showToast]);
 
   useEffect(() => {
     if (screen === "home") setNeedsLegalBanner(needsLegalReacceptance());
@@ -5926,6 +6009,28 @@ export default function Page() {
               </div>
             )}
 
+            {BILLING_ENFORCEMENT_ENABLED && !billingSubscribed ? (
+              <div
+                className="card home-span-full"
+                style={{
+                  marginBottom: 14,
+                  borderColor:
+                    billingFreeRemaining === 0
+                      ? "rgba(255, 122, 102, 0.35)"
+                      : "rgba(232, 197, 122, 0.25)",
+                }}
+              >
+                <p className="muted small" style={{ margin: "0 0 10px" }}>
+                  {billingLabel}
+                </p>
+                {billingFreeRemaining === 0 ? (
+                  <button type="button" className="btn btn-primary" onClick={() => go("subscribe")}>
+                    Subscribe — $10/month
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+
             <button
               type="button"
               className="card"
@@ -6008,6 +6113,30 @@ export default function Page() {
           </div>
           <TabBar active={screen} onNavigate={go} />
         </div>
+        )}
+
+        {screen === "subscribe" && (
+          <div className={screenClass(screen, "subscribe")}>
+            <div className="topbar">
+              <div className="left">
+                <button type="button" className="icon-btn" onClick={() => go("home")} aria-label="Back">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path d="M15 18l-6-6 6-6" />
+                  </svg>
+                </button>
+              </div>
+              <div className="title">Subscribe</div>
+              <div className="right" />
+            </div>
+            <div className="scroll">
+              <h1 style={{ marginBottom: 8 }}>Keep closing deals</h1>
+              <p className="muted" style={{ margin: "0 0 20px", fontSize: 15 }}>
+                Your first 2 deal analyses are free. After that, MIMS is $10 per month for unlimited analyses,
+                invoices, and scope drafts.
+              </p>
+              <SubscriptionPanel email={profile.email} showToast={showToast} />
+            </div>
+          </div>
         )}
 
         <ExtraScreens

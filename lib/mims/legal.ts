@@ -7,7 +7,8 @@ export const LEGAL_LAST_UPDATED = "May 23, 2026";
  * Fill in before commercial launch / attorney review.
  * Use a registered-agent or PO Box address — not a personal residence.
  */
-export const COMPANY_NAME = "MIMS, LLC";
+/** Legal entity operating MIMS — update when your LLC is filed (e.g. Petty Apartment LLC). */
+export const COMPANY_NAME = "Petty Apartment LLC";
 export const COMPANY_MAILING_ADDRESS =
   "[Registered agent or PO Box — City, State ZIP — update before launch]";
 
@@ -44,10 +45,10 @@ export function autoRenewalDisclosure(planPrice: string, billingPeriod = "month"
   );
 }
 
-/** Default copy when plan price is not yet wired — use autoRenewalDisclosure("$X.XX per month") at checkout. */
+/** Default copy when plan price is not yet wired — prefer autoRenewalDisclosure("$10 per month") at checkout. */
 export const AUTO_RENEWAL_DISCLOSURE_PLACEHOLDER = autoRenewalDisclosure(
-  "[plan price]",
-  "billing period",
+  "$10 per month",
+  "month",
 );
 
 export const CONSENT_STORAGE_KEY = "mimsLegalConsent";
