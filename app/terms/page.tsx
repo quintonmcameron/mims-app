@@ -1,7 +1,8 @@
 import {
+  COMPANY_MAILING_ADDRESS,
+  COMPANY_NAME,
   LEGAL_CONTACT_EMAIL,
   LEGAL_LAST_UPDATED,
-  LEGAL_OPERATOR_NAME,
   LEGAL_VERSION,
 } from "@/lib/mims/legal";
 
@@ -50,7 +51,7 @@ export default function TermsPage() {
         <section style={sectionStyle}>
           <h2 style={headingStyle}>1. What MIMS Does</h2>
           <p style={textStyle}>
-            {LEGAL_OPERATOR_NAME} is an educational business tool for independent, freelance creative professionals. It
+            {COMPANY_NAME} is an educational business tool for independent, freelance creative professionals. It
             helps you think through pricing, scope, project inputs, client signals, and deal preparation. Rate outputs are
             freelance market estimates and suggested language based on information you enter — not guaranteed quotes,
             binding rates, or professional advice.
@@ -94,16 +95,26 @@ export default function TermsPage() {
         </section>
 
         <section style={sectionStyle}>
-          <h2 style={headingStyle}>6. Accounts, Payments, and Access</h2>
+          <h2 style={headingStyle}>6. Subscriptions &amp; Automatic Renewal</h2>
           <p style={textStyle}>
-            If paid subscriptions, accounts, or saved profiles are added later, access may depend on account status and
-            payment status. Any paid plan will include clear billing, cancellation, and refund terms before charges
-            apply.
+            If MIMS offers paid subscriptions, you will see the subscription price, billing interval, and automatic
+            renewal terms immediately before you pay. Subscriptions renew automatically until you cancel. You may
+            cancel before the next renewal to avoid future charges; cancellation is effective at the end of the current
+            paid period unless otherwise stated at checkout. California and other states may require renewal
+            reminders — we will provide those where required by law. Refund terms will be stated at checkout and in
+            your account settings.
           </p>
         </section>
 
         <section style={sectionStyle}>
-          <h2 style={headingStyle}>7. Intellectual Property</h2>
+          <h2 style={headingStyle}>7. Accounts and Access</h2>
+          <p style={textStyle}>
+            If user accounts or saved profiles are added, access may depend on account status and payment status.
+          </p>
+        </section>
+
+        <section style={sectionStyle}>
+          <h2 style={headingStyle}>8. Intellectual Property</h2>
           <p style={textStyle}>
             The MIMS name, design, product structure, and original app content belong to the operator of MIMS. You may
             use outputs for your own freelance business, but you may not copy, resell, or recreate the app as a competing
@@ -112,7 +123,7 @@ export default function TermsPage() {
         </section>
 
         <section style={sectionStyle}>
-          <h2 style={headingStyle}>8. Disclaimer of Warranties</h2>
+          <h2 style={headingStyle}>9. Disclaimer of Warranties</h2>
           <p style={textStyle}>
             MIMS is provided on an &quot;as is&quot; and &quot;as available&quot; basis without warranties of any kind,
             whether express or implied, including implied warranties of merchantability, fitness for a particular
@@ -122,7 +133,7 @@ export default function TermsPage() {
         </section>
 
         <section style={sectionStyle}>
-          <h2 style={headingStyle}>9. Limitation of Liability</h2>
+          <h2 style={headingStyle}>10. Limitation of Liability</h2>
           <p style={textStyle}>
             To the fullest extent allowed by law, MIMS and its operator are not liable for lost income, rejected
             proposals, client disputes, contract issues, business losses, or decisions made from app outputs. Use MIMS as
@@ -131,7 +142,7 @@ export default function TermsPage() {
         </section>
 
         <section style={sectionStyle}>
-          <h2 style={headingStyle}>10. Indemnification</h2>
+          <h2 style={headingStyle}>11. Indemnification</h2>
           <p style={textStyle}>
             You agree to indemnify and hold harmless the operator of MIMS from claims, damages, and expenses (including
             reasonable attorneys&apos; fees) arising from your use of the app, your deal materials, your client
@@ -140,7 +151,7 @@ export default function TermsPage() {
         </section>
 
         <section style={sectionStyle}>
-          <h2 style={headingStyle}>11. Termination</h2>
+          <h2 style={headingStyle}>12. Termination</h2>
           <p style={textStyle}>
             You may stop using MIMS at any time. We may suspend or discontinue the app or features with reasonable notice
             where practicable. Sections that by nature should survive (disclaimers, liability limits, indemnity,
@@ -149,18 +160,20 @@ export default function TermsPage() {
         </section>
 
         <section style={sectionStyle}>
-          <h2 style={headingStyle}>12. Governing Law &amp; Disputes</h2>
+          <h2 style={headingStyle}>13. Governing Law &amp; Disputes</h2>
           <p style={textStyle}>
-            These terms are governed by the laws of the United States and the state in which the operator of MIMS is
-            principally located, without regard to conflict-of-law rules. Before filing a claim, contact us at{" "}
-            {LEGAL_CONTACT_EMAIL} to try to resolve the dispute informally. If informal resolution fails, disputes will
-            be brought in the state or federal courts located in that same state, unless applicable law requires
-            otherwise.
+            These terms are governed by the laws of the State of California and the United States, without regard to
+            conflict-of-law rules, except where prohibited. Before filing a claim, contact us at {LEGAL_CONTACT_EMAIL}{" "}
+            to try to resolve the dispute informally for at least 30 days. If informal resolution fails, you and{" "}
+            {COMPANY_NAME} agree that disputes will be resolved by binding individual arbitration under the rules of the
+            American Arbitration Association, except that either party may bring qualifying claims in small-claims
+            court. You waive any right to participate in a class action. (Have your attorney review this section before
+            launch.)
           </p>
         </section>
 
         <section style={sectionStyle}>
-          <h2 style={headingStyle}>13. Changes</h2>
+          <h2 style={headingStyle}>14. Changes</h2>
           <p style={textStyle}>
             We may update these terms as MIMS evolves. Material updates will be reflected in the version date above.
             Continued use after an update means you accept the revised terms. The app may ask you to re-accept when the
@@ -169,9 +182,10 @@ export default function TermsPage() {
         </section>
 
         <section style={sectionStyle}>
-          <h2 style={headingStyle}>14. Contact</h2>
+          <h2 style={headingStyle}>15. Contact</h2>
           <p style={textStyle}>
-            Questions about these terms: {LEGAL_CONTACT_EMAIL}. Operator: {LEGAL_OPERATOR_NAME}.
+            Questions about these terms: {LEGAL_CONTACT_EMAIL}. Operator: {COMPANY_NAME}. Mailing address:{" "}
+            {COMPANY_MAILING_ADDRESS}.
           </p>
         </section>
       </article>

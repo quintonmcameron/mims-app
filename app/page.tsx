@@ -16,6 +16,7 @@ import {
 
 import { AppLegalDisclaimer } from "@/components/mims/AppLegalDisclaimer";
 import { DocLegalFooter } from "@/components/mims/DocLegalFooter";
+import { LegalSiteFooter } from "@/components/mims/LegalSiteFooter";
 import { FlatRateScopePanel } from "@/components/mims/FlatRateScopePanel";
 import { ProductionBudgetPanel } from "@/components/mims/ProductionBudgetPanel";
 import type { FlatComplexity } from "@/lib/mims/flat-rate-scope";
@@ -2071,19 +2072,32 @@ function TabBar({
   ];
 
   return (
-    <div className="tabbar">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          className={`tab${active === tab.id ? " active" : ""}`}
-          onClick={() => onNavigate(tab.id)}
-        >
-          <div className="tab-ico">{tab.icon}</div>
-          {tab.label}
-        </button>
-      ))}
-    </div>
+    <>
+      <div className="tabbar">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`tab${active === tab.id ? " active" : ""}`}
+            onClick={() => onNavigate(tab.id)}
+          >
+            <div className="tab-ico">{tab.icon}</div>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          bottom: "calc(72px + env(safe-area-inset-bottom, 0px))",
+          left: 0,
+          right: 0,
+          pointerEvents: "auto",
+        }}
+      >
+        <LegalSiteFooter />
+      </div>
+    </>
   );
 }
 
@@ -2425,7 +2439,7 @@ function InvoicePreview({ deal, result, profile, draft }: { deal: Deal; result: 
       >
         {draft.paymentNote || "Payment via ACH or wire. Late fees of 1.5%/mo accrue after 30 days. Project license activates on final payment."}
       </div>
-      <DocLegalFooter />
+      <DocLegalFooter variant="invoice" freelancerName={creator} />
     </div>
   );
 }
@@ -2658,7 +2672,7 @@ function SowPreview({ draft }: { draft: SowDraft }) {
       <p style={{ fontSize: 12, color: "#444", margin: 0, whiteSpace: "pre-wrap" }}>
         {draft.cancellation || "—"}
       </p>
-      <DocLegalFooter />
+      <DocLegalFooter variant="sow" freelancerName={draft.creator} />
     </div>
   );
 }

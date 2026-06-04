@@ -1,7 +1,8 @@
 import {
+  COMPANY_MAILING_ADDRESS,
+  COMPANY_NAME,
   LEGAL_CONTACT_EMAIL,
   LEGAL_LAST_UPDATED,
-  LEGAL_OPERATOR_NAME,
   LEGAL_VERSION,
 } from "@/lib/mims/legal";
 
@@ -113,11 +114,27 @@ export default function PrivacyPage() {
         </section>
 
         <section style={sectionStyle}>
-          <h2 style={headingStyle}>8. Data Sharing</h2>
+          <h2 style={headingStyle}>8. Service Providers</h2>
           <p style={textStyle}>
-            MIMS does not sell your personal information. We use service providers (such as Vercel for hosting and
-            analytics) that process information as needed to operate the service. We may disclose information if required
-            by law or to protect rights and safety.
+            MIMS does not sell your personal information. We currently use the following categories of providers (sign
+            each provider&apos;s Data Processing Agreement when you enable their services):
+          </p>
+          <ul style={{ ...textStyle, paddingLeft: 22, marginTop: 8 }}>
+            <li>
+              <strong>Vercel</strong> — application hosting and Vercel Analytics (page views, device/browser type,
+              general geography). Deal text you type is not intentionally sent to analytics.
+            </li>
+            <li>
+              <strong>Stripe</strong> — not active in the current app version; if we add subscriptions, payment card
+              data will be processed by Stripe, not stored on our servers.
+            </li>
+            <li>
+              <strong>Supabase / PostHog / Resend</strong> — not active today; listed here so we update this policy
+              before turning on database sync, product analytics, or transactional email.
+            </li>
+          </ul>
+          <p style={{ ...textStyle, marginTop: 12 }}>
+            We may disclose information if required by law or to protect rights and safety.
           </p>
         </section>
 
@@ -148,7 +165,8 @@ export default function PrivacyPage() {
         <section style={sectionStyle}>
           <h2 style={headingStyle}>12. Contact</h2>
           <p style={textStyle}>
-            Privacy questions: {LEGAL_CONTACT_EMAIL}. Operator: {LEGAL_OPERATOR_NAME}.
+            Privacy questions: {LEGAL_CONTACT_EMAIL}. Operator: {COMPANY_NAME}. Mailing address:{" "}
+            {COMPANY_MAILING_ADDRESS}.
           </p>
         </section>
       </article>
