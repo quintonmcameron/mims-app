@@ -3208,21 +3208,6 @@ function buildPresetObjections(profile: Profile, leverageScore: number | null): 
       ],
     },
     {
-      id: "payment-terms",
-      label: "We need Net 60 / Net 90 — can you wait on payment?",
-      script: [
-        `Extended payment terms are a form of financing. I price projects for standard milestones — deposit to start, balance on delivery unless we agree otherwise in writing.`,
-        `If cash-flow timing is the issue, we can discuss a modest deposit with a shorter net term, or a slightly higher total fee to reflect the longer receivable risk.`,
-        `Do not absorb net-90 risk on a discounted rate. The creative fee and the payment schedule are separate business decisions.`,
-        `Offer a clear invoice schedule tied to deliverables so accounts payable has something concrete to approve.`,
-      ],
-      diagnostics: [
-        "What is your accounts payable cycle, and who signs off on vendor invoices?",
-        "Would a 50% deposit with Net 30 on the balance work within your process?",
-        "Is the delay about budget timing or about internal approval steps we can plan around?",
-      ],
-    },
-    {
       id: "rush-no-fee",
       label: "We need this turned around fast — same budget?",
       script: [
@@ -3322,25 +3307,6 @@ function generateCustomCounter(input: string, profile: Profile, leverageScore: n
         "Can we put a 3-month retainer agreement on paper today at the current rate?",
         "What is the committed monthly deliverable count you would want in a retainer structure?",
         "When does the first confirmed project kick off — what is your actual timeline?",
-      ],
-    };
-  }
-  if (
-    r.includes("net ") || r.includes("net-") || r.includes("net30") || r.includes("net60") || r.includes("net90") ||
-    r.includes("pay when") || r.includes("pay after") || r.includes("invoice") || r.includes("cash flow") ||
-    (r.includes("deposit") && r.includes("no "))
-  ) {
-    return {
-      role: "coach",
-      script: [
-        `Extended payment terms shift risk onto the freelancer. Separate the creative fee from the financing conversation.`,
-        `Offer milestone billing: deposit to reserve dates, progress payment at picture lock or rough cut, balance on final delivery.`,
-        `If they need longer terms, name a modest fee adjustment or shorter net period — do not discount labor to subsidize their AP cycle.`,
-      ],
-      diagnostics: [
-        "What payment schedule does your accounts payable team actually support?",
-        "Would 50% to hold dates and 50% on delivery fit your approval process?",
-        "Who signs vendor agreements on your side?",
       ],
     };
   }
