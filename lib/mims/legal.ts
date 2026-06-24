@@ -80,6 +80,11 @@ export function readLegalConsent(): LegalConsentRecord | null {
   }
 }
 
+/** True only on first visit — before user has ever accepted (blocking modal). */
+export function needsFirstLaunchConsent(): boolean {
+  return readLegalConsent() === null;
+}
+
 /** True if user must accept (or re-accept) current Terms & Privacy. */
 export function needsLegalReacceptance(): boolean {
   const record = readLegalConsent();

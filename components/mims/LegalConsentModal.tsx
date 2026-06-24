@@ -3,16 +3,16 @@
 import { useState } from "react";
 import {
   LEGAL_VERSION,
-  needsLegalReacceptance,
+  needsFirstLaunchConsent,
   recordLegalConsent,
 } from "@/lib/mims/legal";
 
 /**
  * Blocking first-use modal — mount once via LegalConsentGate in root layout.
- * Separate from AppLegalDisclaimer (inline footer copy on screens).
+ * Shown only the first time the user opens the app; re-acceptance uses the in-app banner.
  */
 export function LegalConsentModal() {
-  const [open, setOpen] = useState(() => needsLegalReacceptance());
+  const [open, setOpen] = useState(() => needsFirstLaunchConsent());
   const [busy, setBusy] = useState(false);
 
   if (!open) return null;
@@ -64,16 +64,19 @@ export function LegalConsentModal() {
         >
           Before you continue
         </p>
-        <h2 id="legal-consent-title" style={{ margin: "0 0 12px", fontSize: 20, letterSpacing: "-0.02em" }}>
+        <h2
+          id="legal-consent-title"
+          style={{ margin: "0 0 12px", fontSize: 20, letterSpacing: "-0.02em", color: "#ffffff" }}
+        >
           Educational estimates only
         </h2>
-        <p style={{ margin: "0 0 16px", fontSize: 14, color: "var(--text-2, #b5b5c2)", lineHeight: 1.6 }}>
+        <p style={{ margin: "0 0 16px", fontSize: 14, color: "#ffffff", lineHeight: 1.6 }}>
           MIMS helps independent freelancers prepare pricing and deal materials. Outputs are estimates and draft
           templates — not legal, tax, accounting, or contract advice, and not a guarantee any client will accept a
           rate.
         </p>
-        <p style={{ margin: "0 0 20px", fontSize: 13, color: "var(--text-3, #6f6f7e)", lineHeight: 1.55 }}>
-          By selecting <strong style={{ color: "var(--text, #fff)" }}>I understand</strong>, you agree to our{" "}
+        <p style={{ margin: "0 0 20px", fontSize: 13, color: "#ffffff", lineHeight: 1.55 }}>
+          By selecting <strong>I understand</strong>, you agree to our{" "}
           <a href="/terms" style={{ color: "#e8c57a" }}>
             Terms of Service
           </a>{" "}
