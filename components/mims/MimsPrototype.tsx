@@ -240,8 +240,8 @@ export default function MimsPrototype() {
                   ),
                 },
                 {
-                  title: "Tactics from the best",
-                  desc: "Voss, Enns, The Futur — distilled into talking points you can use in the meeting.",
+                  title: "Original deal guidance",
+                  desc: "MIMS negotiation coaching — draft talking points you adapt before the meeting.",
                   icon: (
                     <>
                       <path d="M3 7h13M3 12h18M3 17h13" />
@@ -588,10 +588,10 @@ export default function MimsPrototype() {
             </div>
 
             <div className="card" style={{ marginTop: 20 }}>
-              <div className="eyebrow" style={{ marginBottom: 8 }}>Tip of the day</div>
-              <h3 style={{ fontSize: 16 }}>&quot;He who cares less, wins.&quot;</h3>
+              <div className="eyebrow" style={{ marginBottom: 8 }}>MIMS tip</div>
+              <h3 style={{ fontSize: 16 }}>If you&apos;d be relieved when they say no, your stance is right.</h3>
               <p className="muted small" style={{ margin: "8px 0 0" }}>
-                — Blair Enns, <em>Win Without Pitching</em>. If you&apos;d be relieved when they say no, your stance is right.
+                Walk away from deals that need you to shrink scope, rate, and dignity at the same time.
               </p>
             </div>
           </div>

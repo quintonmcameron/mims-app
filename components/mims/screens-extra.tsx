@@ -338,10 +338,13 @@ export function ExtraScreens({
 
       <div className={screenClass("library")}>
         <div className="scroll">
-          <h1>The playbook</h1>
+          <h1>Deal library</h1>
           <div className="card">
-            <div className="eyebrow">Never Split the Difference</div>
-            <h3>The negotiation classic</h3>
+            <div className="eyebrow">Practical Deal Guidance</div>
+            <h3>Your positioning library</h3>
+            <p className="muted small" style={{ margin: "8px 0 0" }}>
+              Original MIMS coaching — saved playbooks coming soon.
+            </p>
           </div>
         </div>
         <TabBar active={screen} onNavigate={go} />

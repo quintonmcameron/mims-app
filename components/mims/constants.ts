@@ -99,8 +99,8 @@ export const DEMO_PROFILE = {
 
 export const LOADING_STEPS = [
   "Pulling freelance market rate estimates…",
-  "Researching the client…",
+  "Factoring in client footprint signals…",
   "Estimating budget capacity…",
   "Scoring close-likelihood…",
-  "Drafting tactics from Voss + Enns…",
+  "Preparing negotiation guidance…",
 ];

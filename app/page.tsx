@@ -40,6 +40,7 @@ import {
   APP_TAGLINE,
   LEGAL_VERSION,
   LOADING_STEPS,
+  NEGOTIATION_COACHING_DISCLAIMER,
   needsLegalReacceptance,
   recordLegalConsent,
 } from "@/lib/mims/legal";
@@ -3206,6 +3207,66 @@ function buildPresetObjections(profile: Profile, leverageScore: number | null): 
         "What is the first confirmed project that would initiate this collaboration, and what is your timeline?",
       ],
     },
+    {
+      id: "payment-terms",
+      label: "We need Net 60 / Net 90 — can you wait on payment?",
+      script: [
+        `Extended payment terms are a form of financing. I price projects for standard milestones — deposit to start, balance on delivery unless we agree otherwise in writing.`,
+        `If cash-flow timing is the issue, we can discuss a modest deposit with a shorter net term, or a slightly higher total fee to reflect the longer receivable risk.`,
+        `Do not absorb net-90 risk on a discounted rate. The creative fee and the payment schedule are separate business decisions.`,
+        `Offer a clear invoice schedule tied to deliverables so accounts payable has something concrete to approve.`,
+      ],
+      diagnostics: [
+        "What is your accounts payable cycle, and who signs off on vendor invoices?",
+        "Would a 50% deposit with Net 30 on the balance work within your process?",
+        "Is the delay about budget timing or about internal approval steps we can plan around?",
+      ],
+    },
+    {
+      id: "rush-no-fee",
+      label: "We need this turned around fast — same budget?",
+      script: [
+        `A shorter timeline changes crew availability, sequencing, and rework risk. Rush work is priced separately from the base scope — it is not the same project on a faster calendar.`,
+        `Name the hard deadline and what must ship on that date. Then show what comes off the scope if the timeline is non-negotiable but the budget is fixed.`,
+        `If they need premium speed, quote rush terms explicitly: higher effective day rate, limited revision rounds, or phased delivery.`,
+        `Protect quality by reducing parallel workstreams, not by silently absorbing overtime.`,
+      ],
+      diagnostics: [
+        "What is the immovable deadline, and what absolutely must be live by then?",
+        "Which deliverables can move to a phase two if we hit the first milestone only?",
+        "Is this urgency driven by a campaign launch, legal date, or internal politics?",
+      ],
+    },
+    {
+      id: "scope-creep",
+      label: "Can you add a few more edits / deliverables?",
+      script: [
+        `Happy to help — additions after scope lock are handled as change orders with updated timing and fee, not folded into the original agreement.`,
+        `List each new ask: extra revision round, additional cutdown, new format, or longer license. Price each line so the client chooses consciously.`,
+        `Use an Additional Request Fee or written change order before new work starts. That protects both sides from surprise resentment at invoice time.`,
+        `If they need flexibility, offer a small bank of hours or a defined revision package up front instead of an open-ended yes.`,
+      ],
+      diagnostics: [
+        "Which new items are must-haves versus nice-to-haves for this launch?",
+        "Does this change the delivery date, or only the post-production load?",
+        "Should we formalize a change order today so approvals and billing stay clean?",
+      ],
+    },
+    {
+      id: "cheaper-option",
+      label: "We found someone cheaper / can do it in-house",
+      script: [
+        `You are not just buying time — you are buying judgment, accountability, and a finished asset that survives stakeholder review.`,
+        `A lower quote often hides thinner scope, fewer revision rounds, weaker usage terms, or less experienced execution. Compare deliverables line by line, not just the bottom number.`,
+        `If in-house is an option, clarify who owns creative direction, revision cycles, and liability when the asset underperforms.`,
+        `Stay professional: wish them well if fit is wrong, but do not match a quote you cannot deliver sustainably.`,
+      ],
+      diagnostics: [
+        "What deliverables and usage rights are included in the other quote?",
+        "Who internally will manage production if you keep it in-house — and do they have capacity?",
+        "What result would make you confident you chose the right team, not just the lowest number?",
+      ],
+    },
   ];
 }
 
@@ -3261,6 +3322,82 @@ function generateCustomCounter(input: string, profile: Profile, leverageScore: n
         "Can we put a 3-month retainer agreement on paper today at the current rate?",
         "What is the committed monthly deliverable count you would want in a retainer structure?",
         "When does the first confirmed project kick off — what is your actual timeline?",
+      ],
+    };
+  }
+  if (
+    r.includes("net ") || r.includes("net-") || r.includes("net30") || r.includes("net60") || r.includes("net90") ||
+    r.includes("pay when") || r.includes("pay after") || r.includes("invoice") || r.includes("cash flow") ||
+    (r.includes("deposit") && r.includes("no "))
+  ) {
+    return {
+      role: "coach",
+      script: [
+        `Extended payment terms shift risk onto the freelancer. Separate the creative fee from the financing conversation.`,
+        `Offer milestone billing: deposit to reserve dates, progress payment at picture lock or rough cut, balance on final delivery.`,
+        `If they need longer terms, name a modest fee adjustment or shorter net period — do not discount labor to subsidize their AP cycle.`,
+      ],
+      diagnostics: [
+        "What payment schedule does your accounts payable team actually support?",
+        "Would 50% to hold dates and 50% on delivery fit your approval process?",
+        "Who signs vendor agreements on your side?",
+      ],
+    };
+  }
+  if (
+    r.includes("asap") || r.includes("urgent") || r.includes("rush") || r.includes("tomorrow") ||
+    r.includes("this week") || r.includes("turnaround") || r.includes("deadline")
+  ) {
+    return {
+      role: "coach",
+      script: [
+        `Fast timelines require tradeoffs. Confirm the immovable date, then show what scope fits that calendar at your standard rate — or what rush terms apply.`,
+        `Rush work is priced explicitly: tighter window, limited revisions, or premium day rate. Same budget + half the time is a scope problem, not a loyalty test.`,
+        `Offer a phased delivery: must-have assets on the hard date, secondary deliverables immediately after.`,
+      ],
+      diagnostics: [
+        "What must be finished by the deadline versus what can ship 48 hours later?",
+        "Is there flexibility on revision rounds if we optimize for speed?",
+        "What internal event is driving the urgency?",
+      ],
+    };
+  }
+  if (
+    r.includes("revision") || r.includes("one more") || r.includes("extra") || r.includes("add ") ||
+    r.includes("tweak") || r.includes("small change") || r.includes("while you're at it") ||
+    r.includes("scope")
+  ) {
+    return {
+      role: "coach",
+      script: [
+        `Additional deliverables or revision rounds after scope lock are change orders — priced and scheduled before the work begins.`,
+        `List each new request as its own line: format, length, license, or round. Let the client prioritize instead of absorbing creep silently.`,
+        `If flexibility is important to them, propose a prepaid revision bank or defined rounds in the SOW up front.`,
+      ],
+      diagnostics: [
+        "Which of these new items are required for launch versus post-launch?",
+        "Does this affect the delivery date or only post-production hours?",
+        "Should we issue a short change order today so everyone has the same record?",
+      ],
+    };
+  }
+  if (
+    r.includes("cheaper") || r.includes("in-house") || r.includes("in house") || r.includes("nephew") ||
+    r.includes("friend") || (r.includes("another") && r.includes("quote")) || r.includes("competitor") ||
+    r.includes("someone else")
+  ) {
+    return {
+      role: "coach",
+      script: [
+        `Compare scope, usage rights, revision limits, and experience — not just the bottom line. A lower quote often means a different product.`,
+        `As a ${tierLabel} ${trade}${extras}, you are selling accountable delivery and fewer surprises in stakeholder review.`,
+        ...(resumeLine ? [resumeLine] : []),
+        `If fit is wrong, decline professionally. Matching an unsustainable quote trains the market to expect unsustainable work.`,
+      ],
+      diagnostics: [
+        "What is included in the other quote — deliverables, license term, revision rounds?",
+        "Who owns the work if internal production misses the launch window?",
+        "What business result are you optimizing for: lowest cost or lowest risk?",
       ],
     };
   }
@@ -4551,6 +4688,9 @@ function ExtraScreens({
                     </button>
                   ))}
                 </div>
+                <p style={{ margin: "0 0 14px", fontSize: 11, color: "var(--text-3)", lineHeight: 1.55 }}>
+                  {NEGOTIATION_COACHING_DISCLAIMER}
+                </p>
               </div>
 
               {/* Blueprint tab */}
@@ -4579,19 +4719,40 @@ function ExtraScreens({
                   )}
 
                   <div className="tactic" style={{ marginTop: 12 }}>
-                    <div className="source">02 · Connect the Fee to the Business Result</div>
-                    <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Result Math</div>
+                    <div className="source">02 · Customer Economics</div>
+                    <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Value Math</div>
                     <p style={{ margin: 0, fontSize: 14, color: "var(--text-2)", lineHeight: 1.7 }}>
-                      Before adjusting the number, clarify what it would mean for {deal.client || "this business"} if this creative helped produce{" "}
-                      {result.breakEvenSales != null
-                        ? <><strong style={{ color: "var(--gold)" }}>{result.breakEvenSales}</strong> new customer{result.breakEvenSales !== 1 ? "s" : ""}</>
-                        : "measurable revenue growth"}.{" "}
-                      Use that business result to explain why the <strong style={{ color: "var(--gold)" }}>${fmt(result.target)}</strong> investment is sized the way it is.
+                      {parseMoney(intelLtv) > 0 && result.breakEvenSales != null ? (
+                        <>
+                          If one customer is worth about <strong style={{ color: "var(--gold)" }}>${fmt(parseMoney(intelLtv))}</strong> to{" "}
+                          {deal.client || "this client"}, then a <strong style={{ color: "var(--gold)" }}>${fmt(result.target)}</strong> project
+                          breaks even at roughly <strong style={{ color: "var(--gold)" }}>{result.breakEvenSales}</strong> new
+                          customer{result.breakEvenSales !== 1 ? "s" : ""}. Use that math before you negotiate the fee down — you are
+                          discussing return on marketing, not just production cost.
+                        </>
+                      ) : (
+                        <>
+                          Ask what one customer, subscription, or sale is worth to {deal.client || "this business"} before you defend
+                          the number. When you know that figure, compare it to your{" "}
+                          <strong style={{ color: "var(--gold)" }}>${fmt(result.target)}</strong> estimate — most pushback is really
+                          uncertainty about ROI, not hatred of your day rate.
+                        </>
+                      )}
                     </p>
                   </div>
 
                   <div className="tactic" style={{ marginTop: 12 }}>
-                    <div className="source">03 · Clarify the Need Before Scope</div>
+                    <div className="source">03 · Connect the Fee to the Business Result</div>
+                    <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Result Framing</div>
+                    <p style={{ margin: 0, fontSize: 14, color: "var(--text-2)", lineHeight: 1.7 }}>
+                      Before adjusting the number, clarify what success should look like 90 days after delivery. Tie the{" "}
+                      <strong style={{ color: "var(--gold)" }}>${fmt(result.target)}</strong> investment to the business outcome the
+                      work is meant to support — leads, conversions, launch momentum, or brand trust — not to hours on set.
+                    </p>
+                  </div>
+
+                  <div className="tactic" style={{ marginTop: 12 }}>
+                    <div className="source">04 · Clarify the Need Before Scope</div>
                     <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Scope Check</div>
                     <p style={{ margin: 0, fontSize: 14, color: "var(--text-2)", lineHeight: 1.7 }}>
                       Ask what success should look like 90 days after delivery, then listen for the business priority behind the creative request. Their answer shows which deliverables matter most and which items can be phased if budget becomes tight.
@@ -4599,7 +4760,7 @@ function ExtraScreens({
                   </div>
 
                   <div className="tactic" style={{ marginTop: 12 }}>
-                    <div className="source">04 · Keep Scope Tied to Outcome</div>
+                    <div className="source">05 · Keep Scope Tied to Outcome</div>
                     <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.07em", textTransform: "uppercase", fontWeight: 600, margin: "6px 0 10px" }}>MIMS · Scope Protection</div>
                     <p style={{ margin: 0, fontSize: 14, color: "var(--text-2)", lineHeight: 1.7 }}>
                       If <strong style={{ color: "var(--gold)" }}>${fmt(result.target)}</strong> feels too high for the client, reduce the project size before reducing the rate logic. The floor is <strong style={{ color: "var(--coral)" }}>${fmt(result.floorRate ?? result.floor)}</strong>; below that, the scope should be simplified.
@@ -4624,6 +4785,9 @@ function ExtraScreens({
                         </div>
                         <p style={{ margin: 0, fontSize: 13, color: "var(--text-3)", lineHeight: 1.7 }}>
                           Tap a common client concern below,<br />or type your own to get a response draft.
+                        </p>
+                        <p style={{ margin: "12px 0 0", fontSize: 11, color: "var(--text-3)", lineHeight: 1.55 }}>
+                          {NEGOTIATION_COACHING_DISCLAIMER}
                         </p>
                       </div>
                     ) : simMessages.map((msg, i) => (

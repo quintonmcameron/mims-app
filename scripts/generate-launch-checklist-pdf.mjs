@@ -31,6 +31,7 @@ const SECTIONS = [
       "Attorney reviews Terms of Service (/terms) — arbitration, liability, generated docs",
       "Attorney reviews Privacy Policy (/privacy) — Vercel Analytics, future Stripe",
       "Attorney reviews auto-renewal disclosure (CA Automatic Renewal Law)",
+      "Attorney reviews MIMS negotiation coaching copy (Blueprint + Sim) for IP and liability",
       "Update lib/mims/legal.ts: COMPANY_MAILING_ADDRESS + exact LLC name",
       "Sign vendor DPAs: Vercel, Stripe (+ others when enabled)",
       "Written refund / chargeback policy (1 page internal)",
