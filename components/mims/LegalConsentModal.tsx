@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   LEGAL_VERSION,
   needsFirstLaunchConsent,
@@ -12,16 +12,25 @@ import {
  * Shown only the first time the user opens the app; re-acceptance uses the in-app banner.
  */
 export function LegalConsentModal() {
-  const [open, setOpen] = useState(() => needsFirstLaunchConsent());
+  const [mounted, setMounted] = useState(false);
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  if (!open) return null;
+  useEffect(() => {
+    setMounted(true);
+    setOpen(needsFirstLaunchConsent());
+  }, []);
+
+  if (!mounted || !open) return null;
 
   const accept = () => {
     setBusy(true);
-    recordLegalConsent();
-    setOpen(false);
-    setBusy(false);
+    try {
+      recordLegalConsent();
+    } finally {
+      setOpen(false);
+      setBusy(false);
+    }
   };
 
   return (
@@ -100,6 +109,7 @@ export function LegalConsentModal() {
             fontWeight: 700,
             fontSize: 15,
             cursor: busy ? "wait" : "pointer",
+            pointerEvents: "auto",
           }}
         >
           I understand

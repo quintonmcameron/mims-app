@@ -63,25 +63,49 @@ export type LegalConsentRecord = {
   acceptedAt: string;
 };
 
-export function recordLegalConsent(): void {
+/** In-memory fallback when storage is blocked (private mode, preview iframe, etc.). */
+let sessionConsent: LegalConsentRecord | null = null;
+
+function readStoredConsent(): LegalConsentRecord | null {
+  if (typeof window === "undefined") return null;
+  for (const storage of [localStorage, sessionStorage]) {
+    try {
+      const raw = storage.getItem(CONSENT_STORAGE_KEY);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as LegalConsentRecord;
+      if (parsed?.termsVersion && parsed?.privacyVersion) return parsed;
+    } catch {
+      // ignore corrupt or blocked storage
+    }
+  }
+  return null;
+}
+
+function writeStoredConsent(record: LegalConsentRecord): void {
   if (typeof window === "undefined") return;
+  for (const storage of [localStorage, sessionStorage]) {
+    try {
+      storage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(record));
+      return;
+    } catch {
+      // try next storage backend
+    }
+  }
+}
+
+export function recordLegalConsent(): void {
   const record: LegalConsentRecord = {
     termsVersion: LEGAL_VERSION,
     privacyVersion: LEGAL_VERSION,
     acceptedAt: new Date().toISOString(),
   };
-  localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(record));
+  sessionConsent = record;
+  writeStoredConsent(record);
 }
 
 export function readLegalConsent(): LegalConsentRecord | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(CONSENT_STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as LegalConsentRecord;
-  } catch {
-    return null;
-  }
+  if (sessionConsent) return sessionConsent;
+  return readStoredConsent();
 }
 
 /** True only on first visit — before user has ever accepted (blocking modal). */

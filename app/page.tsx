@@ -91,6 +91,8 @@ interface Profile {
   trade: string;
   experience: string;
   skill: string;
+  /** Day-rate tier per production role (e.g. Cinematographer → expert, Editor → mid). */
+  roleLevels: Record<string, string>;
   location: string;
   extras: string[];
   gearLocker: GearItem[];
@@ -129,7 +131,11 @@ interface Deal {
   scopeNotes: string;
   scopeServices: string[];
   dealRole: string;
+  /** Override profile tier for the primary role on this deal only. */
+  dealRoleLevel: string;
   additionalRoles: string[];
+  /** Per-role tier on this deal when not on profile rate card (or override). */
+  additionalRoleLevels: Record<string, string>;
   /** Non-primary roles you perform; each billed at this % of its catalog day rate (50 / 60 / 75). */
   additionalRoleChargePct: 50 | 60 | 75;
   additionalCrew: AdditionalCrewEntry[];
@@ -235,6 +241,7 @@ const defaultProfile: Profile = {
   trade: "",
   experience: "",
   skill: "",
+  roleLevels: {},
   location: "",
   extras: [],
   gearLocker: [],
@@ -269,7 +276,9 @@ const defaultDeal: Deal = {
   scopeNotes: "",
   scopeServices: [],
   dealRole: "",
+  dealRoleLevel: "",
   additionalRoles: [],
+  additionalRoleLevels: {},
   additionalRoleChargePct: 75,
   additionalCrew: [],
   kitFee: "",
@@ -354,19 +363,102 @@ const EXPERIENCE_TIER_MULTIPLIERS: Record<string, number> = {
   "10+": 1,
 };
 
+function listProfileRoles(profile: Profile): string[] {
+  const fromCard = Object.keys(profile.roleLevels ?? {}).filter((role) => role.trim());
+  if (fromCard.length > 0) {
+    const trade = profile.trade?.trim();
+    if (trade && fromCard.includes(trade)) {
+      return [trade, ...fromCard.filter((role) => role !== trade)];
+    }
+    return fromCard;
+  }
+  const roles: string[] = [];
+  if (profile.trade?.trim()) roles.push(profile.trade.trim());
+  for (const role of profile.extras) {
+    const trimmed = role.trim();
+    if (trimmed && !roles.includes(trimmed)) roles.push(trimmed);
+  }
+  return roles;
+}
+
+function hasRoleOnRateCard(profile: Profile, role: string): boolean {
+  return Boolean(role?.trim() && profile.roleLevels?.[role.trim()]?.trim());
+}
+
+function applyRateCardUpdate(profile: Profile, roleLevels: Record<string, string>): Profile {
+  const roles = Object.keys(roleLevels);
+  const trade =
+    profile.trade && roleLevels[profile.trade]
+      ? profile.trade
+      : roles[0] || "";
+  const extras = roles.filter((role) => role !== trade);
+  const experience = trade ? roleLevels[trade] || profile.experience : profile.experience;
+  return {
+    ...profile,
+    roleLevels,
+    trade,
+    extras,
+    experience,
+    skill: experience,
+  };
+}
+
+function syncRoleLevelsForProfile(profile: Profile): Record<string, string> {
+  const fallback = profile.experience || profile.skill || "";
+  const next = { ...(profile.roleLevels ?? {}) };
+  for (const role of listProfileRoles(profile)) {
+    if (!next[role]?.trim()) next[role] = fallback;
+  }
+  for (const role of Object.keys(next)) {
+    if (!listProfileRoles(profile).includes(role)) delete next[role];
+  }
+  return next;
+}
+
+function getRoleExperienceTier(profile: Profile, role: string): string {
+  const key = role?.trim();
+  if (!key) return "";
+  const mapped = profile.roleLevels?.[key]?.trim();
+  if (mapped) return mapped;
+  if (Object.keys(profile.roleLevels ?? {}).length === 0) {
+    return profile.experience || profile.skill || "";
+  }
+  return "";
+}
+
+function getDealRoleTier(profile: Profile, deal: Deal, role: string): string {
+  const key = role?.trim();
+  if (!key) return "";
+  if (key === deal.dealRole?.trim()) {
+    return deal.dealRoleLevel?.trim() || getRoleExperienceTier(profile, key);
+  }
+  return deal.additionalRoleLevels?.[key]?.trim() || getRoleExperienceTier(profile, key);
+}
+
+function experienceTierLabel(tier: string): string {
+  return EXP_OPTIONS.find((option) => option.id === tier)?.label ?? tier;
+}
+
 function profileHasExperienceTier(profile: Profile): boolean {
+  if (Object.keys(profile.roleLevels ?? {}).length > 0) {
+    return Object.values(profile.roleLevels).some((tier) => Boolean(tier?.trim()));
+  }
   return Boolean(profile.experience?.trim() || profile.skill?.trim());
 }
 
-function canEstimateDayRate(profile: Profile, role: string): boolean {
-  return profileHasExperienceTier(profile) && Boolean((role || profile.trade)?.trim());
+function canEstimateDayRate(profile: Profile, role: string, tierOverride?: string): boolean {
+  const roleKey = (role || profile.trade)?.trim();
+  if (!roleKey) return false;
+  const tier = tierOverride?.trim() || getRoleExperienceTier(profile, roleKey);
+  return Boolean(tier);
 }
 
-function getEstimatedBaseDayRate(profile: Profile, role: string): number {
-  if (!canEstimateDayRate(profile, role)) return 0;
+function getEstimatedBaseDayRate(profile: Profile, role: string, tierOverride?: string): number {
+  const roleKey = (role || profile.trade)?.trim();
+  if (!canEstimateDayRate(profile, roleKey, tierOverride)) return 0;
 
-  const veteranBase = getVeteranRoleRate(role || profile.trade);
-  const tierKey = profile.experience || profile.skill;
+  const veteranBase = getVeteranRoleRate(roleKey);
+  const tierKey = tierOverride?.trim() || getRoleExperienceTier(profile, roleKey);
   const tierMult = EXPERIENCE_TIER_MULTIPLIERS[tierKey] ?? 0.8;
   return Math.round((veteranBase * tierMult) / 25) * 25;
 }
@@ -404,7 +496,9 @@ function getPublicFootprintMultiplier(deal: Deal): number {
 }
 
 function computeRecommendation(profile: Profile, deal: Deal): Recommendation {
-  const base = getEstimatedBaseDayRate(profile, deal.dealRole || profile.trade);
+  const primaryRoleKey = deal.dealRole || profile.trade;
+  const primaryTier = deal.dealRoleLevel?.trim() || getRoleExperienceTier(profile, primaryRoleKey);
+  const base = getEstimatedBaseDayRate(profile, primaryRoleKey, primaryTier);
   const extrasMult = 1 + Math.min(profile.extras.length, 4) * 0.04;
   const resumeScore = profile.resumeLeverageScore ?? 0;
   const resumeClientCount = profile.resumeClientSignals?.length ?? 0;
@@ -471,8 +565,9 @@ function computeRecommendation(profile: Profile, deal: Deal): Recommendation {
   if (!isProjectRate) for (const role of deal.additionalRoles ?? []) {
     if (!role || role === deal.dealRole) continue;
     const mode = getRoleDayMode(role);
+    const roleTier = getDealRoleTier(profile, deal, role);
     const roleDay = Math.round(
-      (getEstimatedBaseDayRate(profile, role) *
+      (getEstimatedBaseDayRate(profile, role, roleTier) *
         multipliers *
         additionalRoleMult) /
         25,
@@ -814,6 +909,131 @@ const EXP_OPTIONS = [
   { id: "expert", label: "Expert" },
 ];
 
+function RateCardBuilder({
+  profile,
+  onChange,
+}: {
+  profile: Profile;
+  onChange: (profile: Profile) => void;
+}) {
+  const [pickRole, setPickRole] = useState("");
+  const roles = listProfileRoles(profile);
+
+  const addRole = (role: string) => {
+    if (!role || roles.includes(role)) return;
+    const roleLevels = { ...(profile.roleLevels ?? {}), [role]: "mid" };
+    onChange(applyRateCardUpdate(profile, roleLevels));
+    setPickRole("");
+  };
+
+  const removeRole = (role: string) => {
+    const roleLevels = { ...(profile.roleLevels ?? {}) };
+    delete roleLevels[role];
+    onChange(applyRateCardUpdate(profile, roleLevels));
+  };
+
+  const setTier = (role: string, tier: string) => {
+    const roleLevels = { ...(profile.roleLevels ?? {}), [role]: tier };
+    onChange(applyRateCardUpdate(profile, roleLevels));
+  };
+
+  return (
+    <div>
+      <RoleSearchInput
+        value={pickRole}
+        onChange={addRole}
+        excludeRoles={roles}
+        placeholder="Search positions to add… e.g. Cinematographer, Editor"
+      />
+      <p className="helper" style={{ marginTop: 8, marginBottom: roles.length ? 14 : 0 }}>
+        Add every position you bill for. Set beginner, mid-level, or expert for each — they become your rate card.
+      </p>
+
+      {roles.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 14 }}>
+          {roles.map((role) => (
+            <div
+              key={role}
+              style={{
+                padding: "14px 14px 12px",
+                borderRadius: 14,
+                border: "1px solid var(--border)",
+                background: "var(--surface)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{role}</div>
+                  {role === profile.trade ? (
+                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--gold)", marginTop: 4 }}>
+                      Primary position
+                    </div>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeRole(role)}
+                  aria-label={`Remove ${role}`}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--text-3)",
+                    cursor: "pointer",
+                    fontSize: 18,
+                    lineHeight: 1,
+                    padding: 4,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              <ChipGroup
+                options={EXP_OPTIONS}
+                value={profile.roleLevels?.[role] || "mid"}
+                onChange={(v) => setTier(role, v as string)}
+              />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="muted small" style={{ marginTop: 14, marginBottom: 0 }}>
+          No positions yet — search above to add your first one.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function DealRoleLevelField({
+  role,
+  profile,
+  tier,
+  onTierChange,
+}: {
+  role: string;
+  profile: Profile;
+  tier: string;
+  onTierChange: (tier: string) => void;
+}) {
+  const onCard = hasRoleOnRateCard(profile, role);
+  const resolved = tier || getRoleExperienceTier(profile, role);
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      {onCard && resolved ? (
+        <p className="helper" style={{ margin: "0 0 8px" }}>
+          From your rate card: <strong>{experienceTierLabel(resolved)}</strong>
+        </p>
+      ) : (
+        <p className="helper" style={{ margin: "0 0 8px" }}>
+          Not on your rate card — set your level for this role on this job.
+        </p>
+      )}
+      <ChipGroup options={EXP_OPTIONS} value={resolved} onChange={(v) => onTierChange(v as string)} />
+    </div>
+  );
+}
+
 const EXTRA_OPTIONS = [
   { id: "color", label: "Color grading" },
   { id: "sound", label: "Sound design" },
@@ -1087,7 +1307,13 @@ const MAX_ADDITIONAL_SELF_ROLES = 6;
 
 /** Ensure shoot/edit day counts exist when added roles need them in the estimate. */
 function bumpDealDaysForAdditionalRoles(deal: Deal, additionalRoles: string[]): Deal {
-  let next: Deal = { ...deal, additionalRoles };
+  const nextLevels: Record<string, string> = {};
+  for (const role of additionalRoles) {
+    if (role && deal.additionalRoleLevels?.[role]) {
+      nextLevels[role] = deal.additionalRoleLevels[role];
+    }
+  }
+  let next: Deal = { ...deal, additionalRoles, additionalRoleLevels: nextLevels };
   for (const v of additionalRoles) {
     if (!v) continue;
     const mode = getRoleDayMode(v);
@@ -1116,7 +1342,8 @@ function getAdditionalSelfRoleDayRate(profile: Profile, role: string, deal: Deal
 }
 
 function getAdjustedRoleDayRate(profile: Profile, role: string, deal: Deal): number {
-  const base = getEstimatedBaseDayRate(profile, role);
+  const tier = getDealRoleTier(profile, deal, role);
+  const base = getEstimatedBaseDayRate(profile, role, tier);
   const extrasMult = 1 + Math.min(profile.extras.length, 4) * 0.04;
   const locationMult = getLocationMarketMultiplier(profile.location);
   const rushPremium = ({ loose: 0, normal: 0, rush: 0.25, fire: 0.5 } as Record<string, number>)[deal.rush] || 0;
@@ -1495,6 +1722,7 @@ function AdditionalRolesPicker({
   deal,
   profile,
   primaryRole,
+  onAdditionalRoleLevelChange,
 }: {
   roles: string[];
   onRolesChange: (roles: string[]) => void;
@@ -1503,6 +1731,7 @@ function AdditionalRolesPicker({
   deal: Deal;
   profile: Profile;
   primaryRole: string;
+  onAdditionalRoleLevelChange: (role: string, tier: string) => void;
 }) {
   const [pickRole, setPickRole] = useState("");
   const previewDeal = withLivePreviewDays(deal);
@@ -1511,6 +1740,7 @@ function AdditionalRolesPicker({
   const addRole = (role: string) => {
     if (!role || role === primaryRole || roles.includes(role) || atMax) return;
     onRolesChange([...roles, role]);
+    onAdditionalRoleLevelChange(role, getRoleExperienceTier(profile, role) || "");
     setPickRole("");
   };
 
@@ -1544,6 +1774,7 @@ function AdditionalRolesPicker({
               const mode = getRoleDayMode(role);
               const charged = getAdditionalSelfRoleDayRate(profile, role, deal);
               const full = getAdjustedRoleDayRate(profile, role, deal);
+              const tier = getDealRoleTier(profile, deal, role);
               const days =
                 mode === "post" || mode === "design"
                   ? previewDeal.editDays
@@ -1567,6 +1798,13 @@ function AdditionalRolesPicker({
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{role}</div>
+                      {tier ? (
+                        <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 4 }}>
+                          {hasRoleOnRateCard(profile, role)
+                            ? `${experienceTierLabel(tier)} · from rate card`
+                            : `${experienceTierLabel(tier)} · set for this job`}
+                        </div>
+                      ) : null}
                       <div style={{ fontSize: 11, color: "var(--text-3)" }}>
                         ${fmt(charged)}/day ({chargePct}% of ${fmt(full)}) · {days} {phase} day
                         {days !== 1 ? "s" : ""}
@@ -1589,6 +1827,14 @@ function AdditionalRolesPicker({
                       ×
                     </button>
                   </div>
+                  {!hasRoleOnRateCard(profile, role) ? (
+                    <DealRoleLevelField
+                      role={role}
+                      profile={profile}
+                      tier={deal.additionalRoleLevels?.[role] || ""}
+                      onTierChange={(v) => onAdditionalRoleLevelChange(role, v)}
+                    />
+                  ) : null}
                 </div>
               );
             })}
@@ -2735,6 +2981,7 @@ type Props = {
   gearLocker: GearItem[];
   profile: Profile;
   leverageScore: number | null;
+  onEditRateCard: () => void;
 };
 
 function CrewSplitCard({ cs }: { cs: CrewSplit }) {
@@ -3430,6 +3677,7 @@ function ExtraScreens({
   gearLocker,
   profile,
   leverageScore,
+  onEditRateCard,
 }: Props) {
   const lockerKitDays = deal.shootDays > 0 ? deal.shootDays : (deal.editDays > 0 ? deal.editDays : 1);
   const lockerActiveItems = gearLocker.filter((g) => deal.kitFeeLockerItems.includes(g.id));
@@ -3455,8 +3703,14 @@ function ExtraScreens({
   );
 
   const baseDay = useMemo(() => {
-    return getEstimatedBaseDayRate(profile, deal.dealRole || profile.trade);
-  }, [profile.trade, profile.experience, profile.skill, deal.dealRole]);
+    return getEstimatedBaseDayRate(
+      profile,
+      deal.dealRole || profile.trade,
+      deal.dealRoleLevel,
+    );
+  }, [profile, deal.dealRole, deal.dealRoleLevel]);
+
+  const activeDealTier = getDealRoleTier(profile, deal, deal.dealRole || profile.trade);
 
   const flatRateEligible = isFlatRateEligible(deal.dealRole);
 
@@ -3624,7 +3878,11 @@ function ExtraScreens({
               additionalRoles.length > 0 && { l: `+${additionalRoles.length} ROLE`, bg: "rgba(232,197,122,.12)", bd: "rgba(232,197,122,.35)", c: "#e8c57a" },
             ] as (false | { l: string; bg: string; bd: string; c: string })[]).filter((p): p is { l: string; bg: string; bd: string; c: string } => !!p);
 
-            const rateReady = canEstimateDayRate(profile, deal.dealRole || profile.trade);
+            const rateReady = canEstimateDayRate(
+              profile,
+              deal.dealRole || profile.trade,
+              deal.dealRoleLevel,
+            );
             const displayDayRate = hasAdditionalRoles ? primaryFullDay : baseDay;
 
             return (
@@ -3668,6 +3926,10 @@ function ExtraScreens({
                   {!rateReady ? (
                     <div style={{ marginTop: 4, fontSize: 10, color: "var(--text-3)", lineHeight: 1.45, maxWidth: 140 }}>
                       Set your experience level in profile to see your day rate
+                    </div>
+                  ) : deal.dealRole ? (
+                    <div style={{ marginTop: 4, fontSize: 10, color: "var(--text-3)", lineHeight: 1.45, maxWidth: 160 }}>
+                      {experienceTierLabel(activeDealTier)} · {deal.dealRole}
                     </div>
                   ) : hasAdditionalRoles ? (
                     <div style={{ marginTop: 4, fontSize: 10, color: "var(--text-3)", lineHeight: 1.45 }}>
@@ -3811,6 +4073,7 @@ function ExtraScreens({
                     setDeal((d) => ({
                       ...d,
                       dealRole: v,
+                      dealRoleLevel: v ? getRoleExperienceTier(profile, v) : "",
                       additionalRoles: (d.additionalRoles ?? []).filter((r) => r && r !== v),
                       pricingMode: eligible ? d.pricingMode : "days",
                       ...flatDefaults,
@@ -3822,6 +4085,29 @@ function ExtraScreens({
                   }}
                 />
               </div>
+
+              {deal.dealRole ? (
+                <div className="field" style={{ marginBottom: 18 }}>
+                  <label>Your level on this role</label>
+                  {hasRoleOnRateCard(profile, deal.dealRole) ? (
+                    <p className="helper" style={{ marginTop: 0, marginBottom: 0 }}>
+                      From your rate card:{" "}
+                      <strong>
+                        {experienceTierLabel(
+                          deal.dealRoleLevel || getRoleExperienceTier(profile, deal.dealRole),
+                        )}
+                      </strong>
+                    </p>
+                  ) : (
+                    <DealRoleLevelField
+                      role={deal.dealRole}
+                      profile={profile}
+                      tier={deal.dealRoleLevel}
+                      onTierChange={(v) => setDeal((d) => ({ ...d, dealRoleLevel: v }))}
+                    />
+                  )}
+                </div>
+              ) : null}
 
               <div className="field">
                 <label>Additional roles (optional)</label>
@@ -3841,6 +4127,12 @@ function ExtraScreens({
                   deal={deal}
                   profile={profile}
                   primaryRole={deal.dealRole}
+                  onAdditionalRoleLevelChange={(role, tier) =>
+                    setDeal((d) => ({
+                      ...d,
+                      additionalRoleLevels: { ...(d.additionalRoleLevels ?? {}), [role]: tier },
+                    }))
+                  }
                 />
               </div>
 
@@ -4921,6 +5213,41 @@ function ExtraScreens({
             <h2>{displayName || "Your profile"}</h2>
             {profileRole && <p className="muted small">{profileRole}</p>}
           </div>
+          {listProfileRoles(profile).length > 0 ? (
+            <div className="card" style={{ marginBottom: 14 }}>
+              <div className="eyebrow" style={{ marginBottom: 8 }}>Rate card</div>
+              <p className="muted small" style={{ margin: "0 0 12px", lineHeight: 1.55 }}>
+                MIMS applies these levels when you pick a matching role on a new deal.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {listProfileRoles(profile).map((role) => (
+                  <div
+                    key={role}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 12,
+                      fontSize: 13,
+                    }}
+                  >
+                    <span style={{ fontWeight: 600 }}>{role}</span>
+                    <span style={{ color: "var(--text-3)" }}>
+                      {experienceTierLabel(getRoleExperienceTier(profile, role))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ width: "100%", marginTop: 14 }}
+                onClick={onEditRateCard}
+              >
+                Edit rate card
+              </button>
+            </div>
+          ) : null}
           <SubscriptionPanel email={profile.email} showToast={showToast} />
           <button type="button" className="card" onClick={() => go("welcome")}>
             Re-take questionnaire
@@ -5364,18 +5691,22 @@ export default function Page() {
   }, [deal.editDays, deal.preProDays, deal.pricingMode, deal.projectFee, deal.shootDays, deal.usage]);
 
   const setupNext = () => {
-    if (setupStep === 1 && !profile.trade) {
-      showToast("Pick a trade to continue");
-      return;
+    if (setupStep === 1) {
+      const roles = listProfileRoles(profile);
+      if (roles.length === 0) {
+        showToast("Add at least one position to your rate card");
+        return;
+      }
+      const missing = roles.filter((role) => !profile.roleLevels?.[role]?.trim());
+      if (missing.length > 0) {
+        showToast("Set a level for each position on your rate card");
+        return;
+      }
     }
-    if (setupStep === 2 && !profile.experience) {
-      showToast("Pick your current level");
-      return;
-    }
-    if (setupStep === 3) {
+    if (setupStep === 2) {
       setProfile((p) => ({ ...p, location: setupLocation.trim() }));
     }
-    setSetupStep((s) => Math.min(5, s + 1));
+    setSetupStep((s) => Math.min(4, s + 1));
   };
 
   const setupBack = () => setSetupStep((s) => Math.max(1, s - 1));
@@ -5396,6 +5727,7 @@ export default function Page() {
       name: setupName.trim() || "Freelancer",
       email: setupEmail.trim(),
       gearLocker: setupGear.filter((g) => g.name.trim()),
+      roleLevels: syncRoleLevelsForProfile(p),
       ...(parsedHighlights.detectedExpTier ? { experience: parsedHighlights.detectedExpTier } : {}),
       ...(parsedHighlights.detectedSkillTier ? { skill: parsedHighlights.detectedSkillTier } : {}),
       ...(hasHighlights ? {
@@ -5752,23 +6084,24 @@ export default function Page() {
             </div>
             <div className="title">About you</div>
             <div className="right" style={{ fontSize: 12, color: "var(--text-3)" }}>
-              {setupStep} / 5
+              {setupStep} / 4
             </div>
           </div>
           <div className="screen-pad">
             <div className="progress" style={{ marginBottom: 20 }}>
-              <div style={{ width: `${setupStep * 20}%` }} />
+              <div style={{ width: `${(setupStep / 4) * 100}%` }} />
             </div>
 
             {setupStep === 1 && (
               <>
-                <h2>What is your position?</h2>
+                <h2>Build your rate card</h2>
                 <p className="muted small" style={{ margin: "6px 0 18px" }}>
-                  Pick the role you are charging for today. Search the MIMS production role list.
+                  Search and add every position you bill for. Set beginner, mid-level, or expert for each — MIMS uses this
+                  automatically when a client hires you for that role.
                 </p>
-                <RoleSearchInput
-                  value={profile.trade}
-                  onChange={(v) => setProfile((p) => ({ ...p, trade: v }))}
+                <RateCardBuilder
+                  profile={profile}
+                  onChange={(next) => setProfile(next)}
                 />
                 <div className="divider" style={{ marginTop: 18 }} />
                 <button type="button" className="btn btn-primary" onClick={setupNext}>
@@ -5778,29 +6111,6 @@ export default function Page() {
             )}
 
             {setupStep === 2 && (
-              <>
-                <h2>What level are you operating at?</h2>
-                <p className="muted small" style={{ margin: "6px 0 18px" }}>
-                  Pick the level that best reflects what you can execute today, not just how many years you have been working.
-                </p>
-                <ChipGroup
-                  options={EXP_OPTIONS}
-                  value={profile.experience}
-                  onChange={(v) => setProfile((p) => ({ ...p, experience: v as string, skill: v as string }))}
-                />
-                <div className="divider" />
-                <div className="btn-row">
-                  <button type="button" className="btn btn-ghost" onClick={setupBack}>
-                    Back
-                  </button>
-                  <button type="button" className="btn btn-primary" onClick={setupNext}>
-                    Continue
-                  </button>
-                </div>
-              </>
-            )}
-
-            {setupStep === 3 && (
               <>
                 <h2>Where do you work?</h2>
                 <p className="muted small" style={{ margin: "6px 0 14px" }}>
@@ -5815,14 +6125,6 @@ export default function Page() {
                     onChange={(e) => setSetupLocation(e.target.value)}
                   />
                 </div>
-                <h3 style={{ marginTop: 18 }}>Other skills you offer</h3>
-                <p className="muted small" style={{ margin: "6px 0 12px" }}>
-                  Search and add every role or skill you can credibly cover.
-                </p>
-                <SkillsMultiSearch
-                  values={profile.extras}
-                  onChange={(v) => setProfile((p) => ({ ...p, extras: v }))}
-                />
                 <div className="divider" />
                 <div className="btn-row">
                   <button type="button" className="btn btn-ghost" onClick={setupBack}>
@@ -5835,7 +6137,7 @@ export default function Page() {
               </>
             )}
 
-            {setupStep === 4 && (
+            {setupStep === 3 && (
               <>
                 <h2>Finish the profile</h2>
                 <p className="muted small" style={{ margin: "6px 0 14px" }}>
@@ -5915,7 +6217,7 @@ export default function Page() {
                 </div>
               </>
             )}
-            {setupStep === 5 && (
+            {setupStep === 4 && (
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--grad-soft)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -6325,6 +6627,10 @@ export default function Page() {
           gearLocker={profile.gearLocker}
           profile={profile}
           leverageScore={leverageScore}
+          onEditRateCard={() => {
+            setSetupStep(1);
+            go("profile-setup");
+          }}
         />
       </div>
 
