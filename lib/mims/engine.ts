@@ -27,7 +27,6 @@ export interface Profile {
 
 export interface Deal {
   client: string;
-  url: string;
   source: string;
   project: string;
   shootDays: number;
@@ -67,7 +66,6 @@ export const defaultProfile: Profile = {
 
 export const defaultDeal: Deal = {
   client: "",
-  url: "",
   source: "referral",
   project: "brand-video",
   shootDays: 2,

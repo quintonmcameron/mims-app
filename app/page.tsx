@@ -101,7 +101,6 @@ interface Profile {
 
 interface Deal {
   client: string;
-  url: string;
   publicAudience: string;
   brandMaturity: string;
   pricePoint: string;
@@ -242,7 +241,6 @@ const defaultProfile: Profile = {
 
 const defaultDeal: Deal = {
   client: "",
-  url: "",
   publicAudience: "",
   brandMaturity: "",
   pricePoint: "",
@@ -3608,7 +3606,7 @@ function ExtraScreens({
             <div className="deal-form-grid">
               <h2>Who is the client?</h2>
               <p className="muted small" style={{ margin: "6px 0 16px" }}>
-                MIMS will research them in the background.
+                Use the footprint signals below based on what you already know about their brand.
               </p>
               <div className="field">
                 <label>Company or contact name</label>
@@ -3616,15 +3614,6 @@ function ExtraScreens({
                   type="text"
                   value={deal.client}
                   onChange={(e) => setDeal((d) => ({ ...d, client: e.target.value }))}
-                />
-              </div>
-              <div className="field">
-                <label>Website or social link (optional)</label>
-                <input
-                  type="url"
-                  placeholder="Website, Instagram, TikTok, YouTube, LinkedIn…"
-                  value={deal.url}
-                  onChange={(e) => setDeal((d) => ({ ...d, url: e.target.value }))}
                 />
               </div>
               <div className="field">

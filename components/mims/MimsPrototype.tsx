@@ -47,7 +47,6 @@ export default function MimsPrototype() {
   const [deal, setDeal] = useState<Deal>({
     ...defaultDeal,
     client: "Summit Coffee Co.",
-    url: "https://summitcoffee.com",
   });
   const [result, setResult] = useState<Recommendation | null>(null);
   const [rateDetail, setRateDetail] = useState("");

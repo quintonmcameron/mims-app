@@ -20,7 +20,7 @@ export const APP_TAGLINE =
 
 export const LOADING_STEPS = [
   "Pulling freelance market rate estimates…",
-  "Researching the client…",
+  "Factoring in client footprint signals…",
   "Estimating budget capacity…",
   "Scoring close-likelihood…",
   "Preparing your deal guidance…",

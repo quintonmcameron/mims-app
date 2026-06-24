@@ -103,7 +103,7 @@ export function ExtraScreens({
             <>
               <h2>Who&apos;s the client?</h2>
               <p className="muted small" style={{ margin: "6px 0 16px" }}>
-                MIMS will research them in the background.
+                Use what you already know about their brand when you answer the next steps.
               </p>
               <div className="field">
                 <label>Company or contact name</label>
@@ -111,14 +111,6 @@ export function ExtraScreens({
                   type="text"
                   value={deal.client}
                   onChange={(e) => setDeal((d) => ({ ...d, client: e.target.value }))}
-                />
-              </div>
-              <div className="field">
-                <label>Website (optional)</label>
-                <input
-                  type="url"
-                  value={deal.url}
-                  onChange={(e) => setDeal((d) => ({ ...d, url: e.target.value }))}
                 />
               </div>
               <div className="field">

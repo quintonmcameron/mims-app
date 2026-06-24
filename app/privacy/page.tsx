@@ -51,8 +51,8 @@ export default function PrivacyPage() {
         <section style={sectionStyle}>
           <h2 style={headingStyle}>1. Information You Enter</h2>
           <p style={textStyle}>
-            MIMS may ask for profile details, creative roles, city, project details, client names, client website or
-            social links, public footprint signals, professional highlights, budget notes, and deal details. This
+            MIMS may ask for profile details, creative roles, city, project details, client names, public footprint
+            signals, professional highlights, budget notes, and deal details. This information is used to generate
             information is used to generate pricing estimates, deal guidance, invoice previews, and scope suggestions.
           </p>
         </section>
@@ -60,7 +60,7 @@ export default function PrivacyPage() {
         <section style={sectionStyle}>
           <h2 style={headingStyle}>2. Client &amp; Third-Party Information</h2>
           <p style={textStyle}>
-            When you enter a client name, URL, budget, or social signals, you are providing business information about
+            When you enter a client name, budget, or public footprint signals, you are providing business information about
             that party. You are responsible for having a lawful basis to use that information in your work. MIMS does
             not automatically scrape or download client websites on your behalf in the current version; signals are based
             on what you type or select. Do not enter sensitive personal data (health, government IDs, etc.) unless
