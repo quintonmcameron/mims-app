@@ -343,19 +343,31 @@ function getVeteranRoleRate(role: string): number {
   return 650;
 }
 
+const EXPERIENCE_TIER_MULTIPLIERS: Record<string, number> = {
+  beginner: 0.6,
+  mid: 0.8,
+  expert: 1,
+  "0-1": 0.6,
+  "1-3": 0.7,
+  "3-5": 0.8,
+  "5-10": 0.9,
+  "10+": 1,
+};
+
+function profileHasExperienceTier(profile: Profile): boolean {
+  return Boolean(profile.experience?.trim() || profile.skill?.trim());
+}
+
+function canEstimateDayRate(profile: Profile, role: string): boolean {
+  return profileHasExperienceTier(profile) && Boolean((role || profile.trade)?.trim());
+}
+
 function getEstimatedBaseDayRate(profile: Profile, role: string): number {
+  if (!canEstimateDayRate(profile, role)) return 0;
+
   const veteranBase = getVeteranRoleRate(role || profile.trade);
-  const tierMult =
-    ({
-      beginner: 0.6,
-      mid: 0.8,
-      expert: 1,
-      "0-1": 0.6,
-      "1-3": 0.7,
-      "3-5": 0.8,
-      "5-10": 0.9,
-      "10+": 1,
-    } as Record<string, number>)[profile.experience || profile.skill || "mid"] ?? 0.8;
+  const tierKey = profile.experience || profile.skill;
+  const tierMult = EXPERIENCE_TIER_MULTIPLIERS[tierKey] ?? 0.8;
   return Math.round((veteranBase * tierMult) / 25) * 25;
 }
 
@@ -3612,6 +3624,9 @@ function ExtraScreens({
               additionalRoles.length > 0 && { l: `+${additionalRoles.length} ROLE`, bg: "rgba(232,197,122,.12)", bd: "rgba(232,197,122,.35)", c: "#e8c57a" },
             ] as (false | { l: string; bg: string; bd: string; c: string })[]).filter((p): p is { l: string; bg: string; bd: string; c: string } => !!p);
 
+            const rateReady = canEstimateDayRate(profile, deal.dealRole || profile.trade);
+            const displayDayRate = hasAdditionalRoles ? primaryFullDay : baseDay;
+
             return (
               <div className="deal-price-sticky" style={{
                 position: "sticky",
@@ -3634,15 +3649,27 @@ function ExtraScreens({
                     {hasAdditionalRoles ? "Primary rate" : "Base Rate"}
                   </div>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
-                    <span style={{ fontSize: 18, fontWeight: 700, color: "var(--gold)", letterSpacing: "-0.02em", lineHeight: 1 }}>
-                      ${fmt(hasAdditionalRoles ? primaryFullDay : baseDay)}
-                    </span>
-                    <span style={{ fontSize: 10, color: "var(--text-3)", fontWeight: 500 }}>/day</span>
+                    {rateReady ? (
+                      <>
+                        <span style={{ fontSize: 18, fontWeight: 700, color: "var(--gold)", letterSpacing: "-0.02em", lineHeight: 1 }}>
+                          ${fmt(displayDayRate)}
+                        </span>
+                        <span style={{ fontSize: 10, color: "var(--text-3)", fontWeight: 500 }}>/day</span>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: 16, fontWeight: 600, color: "var(--text-3)", letterSpacing: "-0.02em", lineHeight: 1 }}>
+                        —
+                      </span>
+                    )}
                     {hasAdditionalRoles ? (
                       <span style={{ fontSize: 9, color: "var(--text-3)", fontWeight: 600, marginLeft: 4 }}>full</span>
                     ) : null}
                   </div>
-                  {hasAdditionalRoles ? (
+                  {!rateReady ? (
+                    <div style={{ marginTop: 4, fontSize: 10, color: "var(--text-3)", lineHeight: 1.45, maxWidth: 140 }}>
+                      Set your experience level in profile to see your day rate
+                    </div>
+                  ) : hasAdditionalRoles ? (
                     <div style={{ marginTop: 4, fontSize: 10, color: "var(--text-3)", lineHeight: 1.45 }}>
                       {crewRateLines
                         .filter((line) => line.kind === "additional")
@@ -3653,7 +3680,7 @@ function ExtraScreens({
                         ))}
                     </div>
                   ) : null}
-                  {pricedDays > 0 && laborSubtotal > 0 && (
+                  {rateReady && pricedDays > 0 && laborSubtotal > 0 && (
                     <div style={{ marginTop: 4, fontSize: 10, color: "var(--text-3)", whiteSpace: "nowrap" }}>
                       {pricedDayLabel} day{pricedDays === 1 ? "" : "s"}
                       {usingPreviewDays ? " (preview)" : ""} · labor ${fmt(laborSubtotal)}
@@ -3681,20 +3708,24 @@ function ExtraScreens({
                     Est. Total
                   </div>
                   <div
-                    key={liveEstimate.target}
+                    key={rateReady ? liveEstimate.target : "pending"}
                     style={{
                       fontSize: 22,
                       fontWeight: 700,
                       letterSpacing: "-0.03em",
                       lineHeight: 1,
-                      background: "var(--grad)",
-                      WebkitBackgroundClip: "text",
-                      backgroundClip: "text",
-                      color: "transparent",
-                      animation: `mims-tick-${tickDir} 0.24s cubic-bezier(0.34,1.56,0.64,1)`,
+                      ...(rateReady
+                        ? {
+                            background: "var(--grad)",
+                            WebkitBackgroundClip: "text",
+                            backgroundClip: "text",
+                            color: "transparent",
+                            animation: `mims-tick-${tickDir} 0.24s cubic-bezier(0.34,1.56,0.64,1)`,
+                          }
+                        : { color: "var(--text-3)" }),
                     }}
                   >
-                    ${fmt(liveEstimate.target)}
+                    {rateReady ? `$${fmt(liveEstimate.target)}` : "—"}
                   </div>
                 </div>
               </div>
@@ -3944,7 +3975,9 @@ function ExtraScreens({
                   />
                   <p className="helper">
                     {PRE_PRO_DAY_ROLES.has(deal.dealRole)
-                      ? `Prep before the shoot (casting, locations, design, etc.) bills at the same $${fmt(Math.round(baseDay))}/day rate as production — listed separately on the invoice.`
+                      ? baseDay > 0
+                        ? `Prep before the shoot (casting, locations, design, etc.) bills at the same $${fmt(Math.round(baseDay))}/day rate as production — listed separately on the invoice.`
+                        : "Prep before the shoot bills at your profile day rate once you set your experience level — listed separately on the invoice."
                       : "Optional. Use for prep before shoot days (casting, locations, design). Same day rate as production, separate line on the SOW."}
                   </p>
                 </div>
