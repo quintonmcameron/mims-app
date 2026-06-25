@@ -2110,13 +2110,28 @@ function ProjectSearchInput({
   );
 }
 
-function SpinCounter({
+function formatDayCount(n: number): string {
+  if (n === 0) return "";
+  if (Number.isInteger(n)) return String(n);
+  return n.toFixed(1).replace(/\.0$/, "");
+}
+
+function parseDayCountInput(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return 0;
+  const normalized = trimmed.startsWith(".") ? `0${trimmed}` : trimmed;
+  const n = parseFloat(normalized);
+  if (!Number.isFinite(n)) return null;
+  return n;
+}
+
+function DayCountInput({
   label,
   value,
   onChange,
   min = 0,
   max = 30,
-  step = 1,
+  step = 0.5,
 }: {
   label: string;
   value: number;
@@ -2125,69 +2140,81 @@ function SpinCounter({
   max?: number;
   step?: number;
 }) {
-  const clamp = (n: number) => {
+  const [draft, setDraft] = useState(() => formatDayCount(value));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setDraft(formatDayCount(value));
+  }, [value, focused]);
+
+  const snap = (n: number) => {
     const clamped = Math.max(min, Math.min(max, n));
     return Math.round(clamped / step) * step;
   };
-  const displayValue = Number.isInteger(value) ? value.toString() : value.toFixed(1);
+
+  const commit = (raw: string) => {
+    const parsed = parseDayCountInput(raw);
+    if (parsed === null) {
+      setDraft(formatDayCount(value));
+      return;
+    }
+    const next = snap(parsed);
+    onChange(next);
+    setDraft(formatDayCount(next));
+  };
+
   return (
     <div style={{ flex: 1 }}>
-      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-2)", marginBottom: 8 }}>
-        {label}
-      </div>
-      <div
+      <label
         style={{
-          display: "flex", alignItems: "center",
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          borderRadius: 12, height: 52,
-          userSelect: "none", overflow: "hidden",
+          display: "block",
+          fontSize: 13,
+          fontWeight: 500,
+          color: "var(--text-2)",
+          marginBottom: 8,
         }}
-        onWheel={(e) => { e.preventDefault(); onChange(clamp(value + (e.deltaY < 0 ? step : -step))); }}
       >
-        <button
-          type="button"
-          onClick={() => onChange(clamp(value - step))}
-          disabled={value <= min}
-          style={{
-            width: 44, height: "100%", background: "transparent", border: "none",
-            borderRight: "1px solid var(--border)",
-            color: value <= min ? "var(--border-2)" : "var(--text-2)",
-            cursor: value <= min ? "not-allowed" : "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-            transition: "color 0.12s ease",
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-            <path d="M5 12h14" />
-          </svg>
-        </button>
-        <div style={{
-          flex: 1, textAlign: "center",
-          fontSize: 22, fontWeight: 700, letterSpacing: "-0.03em",
-          color: value === 0 ? "var(--text-3)" : "var(--text)",
-          transition: "color 0.12s ease",
-        }}>
-          {value === 0 ? "" : displayValue}
-        </div>
-        <button
-          type="button"
-          onClick={() => onChange(clamp(value + step))}
-          disabled={value >= max}
-          style={{
-            width: 44, height: "100%", background: "transparent", border: "none",
-            borderLeft: "1px solid var(--border)",
-            color: value >= max ? "var(--border-2)" : "var(--text-2)",
-            cursor: value >= max ? "not-allowed" : "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-            transition: "color 0.12s ease",
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </button>
-      </div>
+        {label}
+      </label>
+      <input
+        type="text"
+        inputMode="decimal"
+        placeholder="0"
+        value={focused ? draft : formatDayCount(value)}
+        onFocus={() => {
+          setFocused(true);
+          setDraft(formatDayCount(value));
+        }}
+        onBlur={() => {
+          setFocused(false);
+          commit(draft);
+        }}
+        onChange={(e) => {
+          const next = e.target.value;
+          if (/^$|^\d*\.?\d*$/.test(next)) setDraft(next);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.currentTarget.blur();
+          }
+        }}
+        style={{
+          width: "100%",
+          height: 52,
+          background: "var(--surface)",
+          border: `1px solid ${focused ? "var(--gold)" : "var(--border)"}`,
+          borderRadius: 12,
+          padding: "0 16px",
+          color: value === 0 && !focused ? "var(--text-3)" : "var(--text)",
+          fontSize: 22,
+          fontWeight: 700,
+          letterSpacing: "-0.03em",
+          fontFamily: "inherit",
+          outline: "none",
+          boxSizing: "border-box",
+          transition: "border-color 0.15s ease",
+        }}
+      />
     </div>
   );
 }
@@ -4356,45 +4383,43 @@ function ExtraScreens({
                 />
               ) : deal.pricingMode !== "project" ? (
               <>
-              <div className="deal-days-row" style={{ marginTop: flatRateEligible ? 8 : 18, marginBottom: 14 }}>
+              <p className="helper" style={{ marginTop: flatRateEligible ? 8 : 18, marginBottom: 10 }}>
+                Type day counts directly. Use <strong>.5</strong> for half days (e.g. 1.5 or .5).
+              </p>
+              <div className="deal-days-row" style={{ marginBottom: 14 }}>
                 {dayMode === "dual" && (
                   <div className="row">
-                    <SpinCounter
+                    <DayCountInput
                       label="Production Days"
                       value={deal.shootDays}
                       onChange={(v) => setDeal((d) => ({ ...d, shootDays: v }))}
-                      step={0.5}
                     />
-                    <SpinCounter
+                    <DayCountInput
                       label="Edit Days"
                       value={deal.editDays}
                       onChange={(v) => setDeal((d) => ({ ...d, editDays: v }))}
-                      step={0.5}
                     />
                   </div>
                 )}
                 {dayMode === "production" && (
-                  <SpinCounter
+                  <DayCountInput
                     label="Production Days"
                     value={deal.shootDays}
                     onChange={(v) => setDeal((d) => ({ ...d, shootDays: v }))}
-                    step={0.5}
                   />
                 )}
                 {dayMode === "post" && (
-                  <SpinCounter
+                  <DayCountInput
                     label="Post-Production Days"
                     value={deal.editDays}
                     onChange={(v) => setDeal((d) => ({ ...d, editDays: v }))}
-                    step={0.5}
                   />
                 )}
                 {dayMode === "design" && (
-                  <SpinCounter
+                  <DayCountInput
                     label="Working Days"
                     value={deal.editDays}
                     onChange={(v) => setDeal((d) => ({ ...d, editDays: v }))}
-                    step={0.5}
                   />
                 )}
               </div>
@@ -4403,11 +4428,10 @@ function ExtraScreens({
 
               {deal.pricingMode !== "project" && (
                 <div style={{ marginTop: 4, marginBottom: 14 }}>
-                  <SpinCounter
+                  <DayCountInput
                     label="Pre-production days (optional)"
                     value={deal.preProDays}
                     onChange={(v) => setDeal((d) => ({ ...d, preProDays: v }))}
-                    step={0.5}
                   />
                   <p className="helper">
                     {PRE_PRO_DAY_ROLES.has(deal.dealRole)
