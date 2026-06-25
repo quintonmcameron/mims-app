@@ -385,6 +385,11 @@ function hasRoleOnRateCard(profile: Profile, role: string): boolean {
   return Boolean(role?.trim() && profile.roleLevels?.[role.trim()]?.trim());
 }
 
+function initialDealRoleLevel(profile: Profile, role: string): string {
+  if (!role?.trim()) return "";
+  return hasRoleOnRateCard(profile, role) ? getRoleExperienceTier(profile, role) : "";
+}
+
 function applyRateCardUpdate(profile: Profile, roleLevels: Record<string, string>): Profile {
   const roles = Object.keys(roleLevels);
   const trade =
@@ -917,6 +922,7 @@ function RateCardBuilder({
   onChange: (profile: Profile) => void;
 }) {
   const [pickRole, setPickRole] = useState("");
+  const [optionalPicks, setOptionalPicks] = useState(["", "", ""]);
   const roles = listProfileRoles(profile);
 
   const addRole = (role: string) => {
@@ -924,6 +930,15 @@ function RateCardBuilder({
     const roleLevels = { ...(profile.roleLevels ?? {}), [role]: "mid" };
     onChange(applyRateCardUpdate(profile, roleLevels));
     setPickRole("");
+  };
+
+  const addRoleFromOptionalSlot = (slotIndex: number, role: string) => {
+    addRole(role);
+    setOptionalPicks((prev) => {
+      const next = [...prev];
+      next[slotIndex] = "";
+      return next;
+    });
   };
 
   const removeRole = (role: string) => {
@@ -936,6 +951,8 @@ function RateCardBuilder({
     const roleLevels = { ...(profile.roleLevels ?? {}), [role]: tier };
     onChange(applyRateCardUpdate(profile, roleLevels));
   };
+
+  const suggestedRoles = POPULAR_ROLES.filter((role) => !roles.includes(role)).slice(0, 3);
 
   return (
     <div>
@@ -1000,6 +1017,65 @@ function RateCardBuilder({
           No positions yet — search above to add your first one.
         </p>
       )}
+
+      <div
+        style={{
+          marginTop: 22,
+          paddingTop: 20,
+          borderTop: "1px solid var(--border)",
+        }}
+      >
+        <h3 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 700 }}>More positions (optional)</h3>
+        <p className="muted small" style={{ margin: "0 0 14px", lineHeight: 1.55 }}>
+          Stack up to three other roles you sometimes bill for — e.g. expert DP who also edits, or a producer who
+          directs. Each slot adds another line on your rate card.
+        </p>
+
+        {suggestedRoles.length > 0 ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+            {suggestedRoles.map((role) => (
+              <button
+                key={role}
+                type="button"
+                onClick={() => addRole(role)}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(232,197,122,0.35)",
+                  background: "rgba(232,197,122,0.08)",
+                  color: "var(--text)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                + {role}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {optionalPicks.map((slotValue, index) => (
+            <div key={index} className="field" style={{ marginBottom: 0 }}>
+              <label style={{ fontSize: 12, color: "var(--text-2)" }}>
+                Optional position {index + 1}
+              </label>
+              <RoleSearchInput
+                value={slotValue}
+                onChange={(role) => addRoleFromOptionalSlot(index, role)}
+                excludeRoles={roles}
+                placeholder={
+                  suggestedRoles[index]
+                    ? `e.g. ${suggestedRoles[index]}`
+                    : "Search another role you perform…"
+                }
+              />
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1009,29 +1085,55 @@ function DealRoleLevelField({
   profile,
   tier,
   onTierChange,
+  prominent = false,
 }: {
   role: string;
   profile: Profile;
   tier: string;
   onTierChange: (tier: string) => void;
+  prominent?: boolean;
 }) {
   const onCard = hasRoleOnRateCard(profile, role);
-  const resolved = tier || getRoleExperienceTier(profile, role);
+  const resolved = onCard ? tier || getRoleExperienceTier(profile, role) : tier;
 
-  return (
-    <div style={{ marginTop: 10 }}>
+  const inner = (
+    <>
       {onCard && resolved ? (
         <p className="helper" style={{ margin: "0 0 8px" }}>
           From your rate card: <strong>{experienceTierLabel(resolved)}</strong>
         </p>
       ) : (
-        <p className="helper" style={{ margin: "0 0 8px" }}>
-          Not on your rate card — set your level for this role on this job.
+        <p className="helper" style={{ margin: "0 0 10px" }}>
+          {role ? (
+            <>
+              <strong>{role}</strong> isn&apos;t on your rate card yet — pick your skill level for this job.
+            </>
+          ) : (
+            "Pick your skill level for this role on this job."
+          )}
         </p>
       )}
       <ChipGroup options={EXP_OPTIONS} value={resolved} onChange={(v) => onTierChange(v as string)} />
-    </div>
+    </>
   );
+
+  if (prominent && !onCard) {
+    return (
+      <div
+        style={{
+          marginTop: 10,
+          padding: "14px 14px 12px",
+          borderRadius: 14,
+          border: "1px solid rgba(232,197,122,0.45)",
+          background: "rgba(232,197,122,0.06)",
+        }}
+      >
+        {inner}
+      </div>
+    );
+  }
+
+  return <div style={{ marginTop: 10 }}>{inner}</div>;
 }
 
 const EXTRA_OPTIONS = [
@@ -1406,6 +1508,7 @@ function RoleSearchInput({
   onChange,
   placeholder,
   allowClear,
+  allowCustom,
   excludeRole,
   excludeRoles,
 }: {
@@ -1413,6 +1516,8 @@ function RoleSearchInput({
   onChange: (role: string) => void;
   placeholder?: string;
   allowClear?: boolean;
+  /** Accept typed positions not in the MIMS catalog (e.g. custom client titles). */
+  allowCustom?: boolean;
   excludeRole?: string;
   excludeRoles?: string[];
 }) {
@@ -1454,6 +1559,7 @@ function RoleSearchInput({
     }
     const exact = MIMS_ROLES.find((r) => r.toLowerCase() === q.toLowerCase());
     if (exact) select(exact);
+    else if (allowCustom) select(q);
     else setQuery("");
   };
 
@@ -1484,6 +1590,12 @@ function RoleSearchInput({
             }, 120);
           }}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitQuery();
+            }
+          }}
           style={{
             width: "100%",
             background: "var(--surface)",
@@ -1532,9 +1644,34 @@ function RoleSearchInput({
             </div>
           )}
           {filtered.length === 0 ? (
-            <div style={{ padding: "14px 16px", fontSize: 13, color: "var(--text-3)" }}>
-              No match — try a different spelling
-            </div>
+            allowCustom && query.trim() ? (
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  select(query.trim());
+                }}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "11px 16px",
+                  background: "rgba(232,197,122,0.08)",
+                  border: "none",
+                  color: "var(--gold)",
+                  fontSize: 14,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontWeight: 600,
+                }}
+              >
+                Use &ldquo;{query.trim()}&rdquo; as custom position
+              </button>
+            ) : (
+              <div style={{ padding: "14px 16px", fontSize: 13, color: "var(--text-3)" }}>
+                No match — try a different spelling
+              </div>
+            )
           ) : filtered.map((role, i) => (
             <button
               key={role}
@@ -1740,7 +1877,7 @@ function AdditionalRolesPicker({
   const addRole = (role: string) => {
     if (!role || role === primaryRole || roles.includes(role) || atMax) return;
     onRolesChange([...roles, role]);
-    onAdditionalRoleLevelChange(role, getRoleExperienceTier(profile, role) || "");
+    onAdditionalRoleLevelChange(role, initialDealRoleLevel(profile, role));
     setPickRole("");
   };
 
@@ -1755,6 +1892,7 @@ function AdditionalRolesPicker({
       <RoleSearchInput
         value={pickRole}
         onChange={addRole}
+        allowCustom
         placeholder={
           atMax
             ? `Maximum ${MAX_ADDITIONAL_SELF_ROLES} additional roles`
@@ -1832,6 +1970,7 @@ function AdditionalRolesPicker({
                       role={role}
                       profile={profile}
                       tier={deal.additionalRoleLevels?.[role] || ""}
+                      prominent
                       onTierChange={(v) => onAdditionalRoleLevelChange(role, v)}
                     />
                   ) : null}
@@ -4066,6 +4205,7 @@ function ExtraScreens({
                 <label>What position do they want you to do?</label>
                 <RoleSearchInput
                   value={deal.dealRole}
+                  allowCustom
                   onChange={(v) => {
                     const mode = getRoleDayMode(v);
                     const flatDefaults = getDefaultFlatScope(v);
@@ -4073,7 +4213,7 @@ function ExtraScreens({
                     setDeal((d) => ({
                       ...d,
                       dealRole: v,
-                      dealRoleLevel: v ? getRoleExperienceTier(profile, v) : "",
+                      dealRoleLevel: initialDealRoleLevel(profile, v),
                       additionalRoles: (d.additionalRoles ?? []).filter((r) => r && r !== v),
                       pricingMode: eligible ? d.pricingMode : "days",
                       ...flatDefaults,
@@ -4087,9 +4227,9 @@ function ExtraScreens({
               </div>
 
               {deal.dealRole ? (
-                <div className="field" style={{ marginBottom: 18 }}>
-                  <label>Your level on this role</label>
-                  {hasRoleOnRateCard(profile, deal.dealRole) ? (
+                hasRoleOnRateCard(profile, deal.dealRole) ? (
+                  <div className="field" style={{ marginBottom: 18 }}>
+                    <label>Your level on this role</label>
                     <p className="helper" style={{ marginTop: 0, marginBottom: 0 }}>
                       From your rate card:{" "}
                       <strong>
@@ -4098,15 +4238,19 @@ function ExtraScreens({
                         )}
                       </strong>
                     </p>
-                  ) : (
+                  </div>
+                ) : (
+                  <div className="field" style={{ marginBottom: 18 }}>
+                    <label>Your skill level</label>
                     <DealRoleLevelField
                       role={deal.dealRole}
                       profile={profile}
                       tier={deal.dealRoleLevel}
+                      prominent
                       onTierChange={(v) => setDeal((d) => ({ ...d, dealRoleLevel: v }))}
                     />
-                  )}
-                </div>
+                  </div>
+                )
               ) : null}
 
               <div className="field">
