@@ -2762,8 +2762,12 @@ function InvoicePreview({ deal, result, profile, draft }: { deal: Deal; result: 
   const creatorEmail = profile.email || "you@studio.com";
   const lines = buildInvoiceLines(deal, result, profile);
   const subtotal = lines.reduce((sum, line) => sum + line.amount, 0);
-  const depositPercent = Math.max(0, Math.min(100, parseFloat(draft.depositPercent) || 0));
-  const deposit = Math.round(subtotal * (depositPercent / 100) * 100) / 100;
+  const depositPercentRaw = draft.depositPercent.trim();
+  const depositPercent = depositPercentRaw
+    ? Math.max(0, Math.min(100, parseFloat(depositPercentRaw) || 0))
+    : null;
+  const deposit =
+    depositPercent != null ? Math.round(subtotal * (depositPercent / 100) * 100) / 100 : 0;
   const formatMoney = (n: number) => {
     const hasCents = Math.round(n * 100) % 100 !== 0;
     return n.toLocaleString("en-US", {
@@ -2810,7 +2814,9 @@ function InvoicePreview({ deal, result, profile, draft }: { deal: Deal; result: 
           <div className="label-sm" style={{ marginTop: 8 }}>
             Due
           </div>
-          <div>{draft.terms || "Net 14"} · {dateFmt(due)}</div>
+          <div>
+            {[draft.terms, draft.dueDate ? dateFmt(due) : ""].filter(Boolean).join(" · ") || "—"}
+          </div>
         </div>
       </div>
 
@@ -2846,17 +2852,19 @@ function InvoicePreview({ deal, result, profile, draft }: { deal: Deal; result: 
         <span style={{ color: "#6F6F6F" }}>Subtotal</span>
         <span>${fmt(Math.round(subtotal))}</span>
       </div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          fontSize: 13,
-          marginTop: 6,
-        }}
-      >
-        <span style={{ color: "#6F6F6F" }}>{depositPercent}% deposit (due now)</span>
-        <span>${formatMoney(deposit)}</span>
-      </div>
+      {depositPercent != null && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: 13,
+            marginTop: 6,
+          }}
+        >
+          <span style={{ color: "#6F6F6F" }}>{depositPercent}% deposit (due now)</span>
+          <span>${formatMoney(deposit)}</span>
+        </div>
+      )}
 
       <div className="total">
         <span>Total due</span>
@@ -2871,7 +2879,7 @@ function InvoicePreview({ deal, result, profile, draft }: { deal: Deal; result: 
           lineHeight: 1.5,
         }}
       >
-        {draft.paymentNote || "Payment via ACH or wire. Late fees of 1.5%/mo accrue after 30 days. Project license activates on final payment."}
+        {draft.paymentNote || "—"}
       </div>
       <DocLegalFooter variant="invoice" freelancerName={creator} />
     </div>
@@ -2977,8 +2985,6 @@ function buildDefaultSowDraft(deal: Deal, result: Recommendation | null, profile
   const client = deal.client || "Client";
   const creator = profile.name || "Your Studio";
   const total = result?.target ?? 0;
-  const depositPercent = 50;
-  const deposit = Math.round((total * (depositPercent / 100)) / 50) * 50;
   const usageLabel =
     {
       organic:
@@ -3004,13 +3010,9 @@ function buildDefaultSowDraft(deal: Deal, result: Recommendation | null, profile
     revisions:
       "Two rounds included on primary deliverables. Additional rounds: $250 each. Major creative pivots after picture lock are repriced.",
     total: total > 0 ? String(total) : "",
-    depositPercent: String(depositPercent),
-    paymentSchedule:
-      total > 0
-        ? `$${fmt(deposit)} on signing · $${fmt(total - deposit)} on final delivery`
-        : "50% on signing · 50% on final delivery",
-    cancellation:
-      "Kill fee of 50% if cancelled after pre-production begins. Deposit is non-refundable. Force majeure clause applies.",
+    depositPercent: "",
+    paymentSchedule: "",
+    cancellation: "",
   };
 }
 
@@ -3117,6 +3119,8 @@ type Props = {
   screen: ScreenId;
   screenClass: (id: ScreenId) => string;
   go: (id: ScreenId) => void;
+  openDocScreen: (id: "invoice" | "sow", returnTo: ScreenId) => void;
+  leaveDocScreen: () => void;
   showToast: (msg: string) => void;
   startNewDeal: () => void;
   dealStep: number;
@@ -3813,6 +3817,8 @@ function ExtraScreens({
   screen,
   screenClass,
   go,
+  openDocScreen,
+  leaveDocScreen,
   showToast,
   startNewDeal,
   dealStep,
@@ -3929,32 +3935,34 @@ function ExtraScreens({
   const [invoiceDraft, setInvoiceDraft] = useState<InvoiceDraft>({
     invoiceNumber: "",
     billedToName: "",
-    billedToContact: "Accounts Payable",
+    billedToContact: "",
     billedToEmail: "",
     issuedDate: "",
     dueDate: "",
-    terms: "Net 14",
-    depositPercent: "50",
-    paymentNote: "Payment via ACH or wire. Late fees of 1.5%/mo accrue after 30 days. Project license activates on final payment.",
+    terms: "",
+    depositPercent: "",
+    paymentNote: "",
   });
   const [sowDraft, setSowDraft] = useState<SowDraft>(() => buildDefaultSowDraft(deal, result, profile));
   const refreshSowFromDeal = useCallback(() => {
     setSowDraft(buildDefaultSowDraft(deal, result, profile));
     showToast("SOW refreshed from deal estimate");
   }, [deal, result, profile, showToast]);
+
+  const handleOpenDocScreen = (id: "invoice" | "sow", returnTo?: ScreenId) => {
+    setShowNegoSheet(false);
+    openDocScreen(id, returnTo ?? (result ? "deal-result" : screen));
+  };
   useEffect(() => {
     const issued = new Date();
-    const due = new Date(issued);
-    due.setDate(issued.getDate() + 14);
     const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
 
     setInvoiceDraft((draft) => {
-      if (draft.invoiceNumber || draft.issuedDate || draft.dueDate) return draft;
+      if (draft.invoiceNumber || draft.issuedDate) return draft;
       return {
         ...draft,
         invoiceNumber: `MIMS-${issued.getFullYear()}-${String(Date.now()).slice(-4)}`,
         issuedDate: toIsoDate(issued),
-        dueDate: toIsoDate(due),
       };
     });
   }, []);
@@ -5095,10 +5103,10 @@ function ExtraScreens({
             </div>
 
             <div className="btn-row" style={{ marginTop: 24 }}>
-              <button type="button" className="btn btn-secondary" onClick={() => go("sow")}>
+              <button type="button" className="btn btn-secondary" onClick={() => handleOpenDocScreen("sow")}>
                 Build SOW
               </button>
-              <button type="button" className="btn btn-primary" onClick={() => go("invoice")}>
+              <button type="button" className="btn btn-primary" onClick={() => handleOpenDocScreen("invoice")}>
                 Send invoice
               </button>
             </div>
@@ -5430,6 +5438,13 @@ function ExtraScreens({
       </div>
 
       <div className={screenClass("invoice")}>
+        <div className="topbar">
+          <div className="left">
+            <IconBack onClick={leaveDocScreen} />
+          </div>
+          <div className="title">Invoice</div>
+          <div className="right" />
+        </div>
         <div className="screen-pad">
           <div className="card" style={{ marginBottom: 14 }}>
             <div className="eyebrow" style={{ marginBottom: 8 }}>Invoice editor</div>
@@ -5538,6 +5553,13 @@ function ExtraScreens({
       </div>
 
       <div className={screenClass("sow")}>
+        <div className="topbar">
+          <div className="left">
+            <IconBack onClick={leaveDocScreen} />
+          </div>
+          <div className="title">Scope of work</div>
+          <div className="right" />
+        </div>
         <div className="screen-pad">
           <div className="card" style={{ marginBottom: 14 }}>
             <div className="card-row" style={{ marginBottom: 8 }}>
@@ -5775,6 +5797,7 @@ function screenClass(current: ScreenId, id: ScreenId) {
 }
 
 const SCORE_CIRC = 2 * Math.PI * 44;
+const HISTORY_SCREENS: ScreenId[] = ["deal-result", "invoice", "sow"];
 
 export default function Page() {
   const [screen, setScreen] = useState<ScreenId>("welcome");
@@ -5792,6 +5815,9 @@ export default function Page() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const analysisDealRef = useRef<Deal>(defaultDeal);
   const analysisCountedRef = useRef(false);
+  const docReturnRef = useRef<ScreenId>("home");
+  const resultRef = useRef(result);
+  resultRef.current = result;
   const [billingTick, setBillingTick] = useState(0);
   const refreshBilling = useCallback(() => setBillingTick((t) => t + 1), []);
   const billingSubscribed = useMemo(() => hasActiveSubscription(), [billingTick]);
@@ -5825,10 +5851,33 @@ export default function Page() {
   const homeFirst = displayName ? displayName.split(" ")[0] : "";
   const profileRole = [tradeLabel(profile.trade), profile.location].filter(Boolean).join(" · ");
 
-  const go = useCallback((id: ScreenId) => {
+  const go = useCallback((id: ScreenId, options?: { skipHistory?: boolean; historyMode?: "push" | "replace" }) => {
     setScreen(id);
-    if (typeof window !== "undefined") window.scrollTo(0, 0);
+    if (typeof window === "undefined") return;
+    window.scrollTo(0, 0);
+    if (options?.skipHistory) return;
+    if (!HISTORY_SCREENS.includes(id) && options?.historyMode !== "replace") return;
+    const state = { screen: id };
+    if (options?.historyMode === "replace") {
+      window.history.replaceState(state, "");
+    } else {
+      window.history.pushState(state, "");
+    }
   }, []);
+
+  const openDocScreen = useCallback((id: "invoice" | "sow", returnTo: ScreenId) => {
+    docReturnRef.current = returnTo;
+    go(id);
+  }, [go]);
+
+  const leaveDocScreen = useCallback(() => {
+    const target = docReturnRef.current;
+    if (target === "deal-result" && !result) {
+      go("home");
+      return;
+    }
+    go(target);
+  }, [go, result]);
 
   const showToast = useCallback((msg: string) => {
     setToastMsg(msg);
@@ -6015,6 +6064,23 @@ export default function Page() {
     },
     [],
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const initial: ScreenId =
+      localStorage.getItem("mimsOnboardingDone") === "1" ? "home" : "welcome";
+    window.history.replaceState({ screen: initial }, "");
+    const onPop = (event: PopStateEvent) => {
+      const id = (event.state as { screen?: ScreenId } | null)?.screen;
+      if (id) {
+        go(id, { skipHistory: true });
+        return;
+      }
+      go(resultRef.current ? "deal-result" : "home", { skipHistory: true });
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [go]);
 
   useEffect(() => {
     if (localStorage.getItem("mimsOnboardingDone") === "1") {
@@ -6707,7 +6773,7 @@ export default function Page() {
             <div className="home-span-full" style={{ marginTop: 28 }}>
               <h3 style={{ marginBottom: 12 }}>Quick tools</h3>
               <div className="row">
-                <button type="button" className="card" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => go("invoice")}>
+                <button type="button" className="card" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => openDocScreen("invoice", result ? "deal-result" : "home")}>
                   <div className="logo-mark" style={{ background: "var(--grad-soft)", color: "var(--gold)", marginBottom: 10 }}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width={16} height={16}>
                       <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
@@ -6717,7 +6783,7 @@ export default function Page() {
                   <h4 style={{ fontSize: 14 }}>Invoice</h4>
                   <p className="muted small" style={{ margin: "2px 0 0" }}>Send & track</p>
                 </button>
-                <button type="button" className="card" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => go("sow")}>
+                <button type="button" className="card" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => openDocScreen("sow", result ? "deal-result" : "home")}>
                   <div className="logo-mark" style={{ background: "var(--grad-soft)", color: "var(--gold)", marginBottom: 10 }}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} width={16} height={16}>
                       <path d="M9 11l3 3L22 4" />
@@ -6765,6 +6831,8 @@ export default function Page() {
           screen={screen}
           screenClass={(id) => screenClass(screen, id)}
           go={go}
+          openDocScreen={openDocScreen}
+          leaveDocScreen={leaveDocScreen}
           showToast={showToast}
           startNewDeal={startNewDeal}
           dealStep={dealStep}
