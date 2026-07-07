@@ -2625,7 +2625,7 @@ function buildScopeServiceLines(deal: Deal, cs: CrewSplit): Array<{ label: strin
 
 function buildInvoiceLines(deal: Deal, result: Recommendation | null, profile: Profile): InvoiceLine[] {
   const cs = result?.crewSplit;
-  const primaryRole = deal.dealRole || profile.trade || "Creative services";
+  const primaryRole = getDealPrimaryRole(deal, result) || "Creative services";
   if (!cs) {
     return [{
       item: `${primaryRole}${deal.project ? ` · ${deal.project}` : ""}`,
@@ -2886,8 +2886,12 @@ function InvoicePreview({ deal, result, profile, draft }: { deal: Deal; result: 
   );
 }
 
+function getDealPrimaryRole(deal: Deal, result: Recommendation | null): string {
+  return deal.dealRole?.trim() || result?.crewSplit?.primaryRole?.trim() || "";
+}
+
 function buildSowLineItems(deal: Deal, result: Recommendation | null, profile: Profile): SowLineItem[] {
-  const primaryRole = deal.dealRole || profile.trade || "Creative";
+  const primaryRole = getDealPrimaryRole(deal, result) || "Creative services";
   const selectedServices = SCOPE_SERVICE_OPTIONS.filter((s) => (deal.scopeServices ?? []).includes(s.id));
   const cs = result?.crewSplit;
   const lines: SowLineItem[] = [];
@@ -2962,8 +2966,9 @@ function buildSowLineItems(deal: Deal, result: Recommendation | null, profile: P
   return lines;
 }
 
-function buildSowRoles(deal: Deal, profile: Profile): SowRoleRow[] {
-  const primaryRole = deal.dealRole || profile.trade || "Creative";
+function buildSowRoles(deal: Deal, result: Recommendation | null, profile: Profile): SowRoleRow[] {
+  const primaryRole = getDealPrimaryRole(deal, result);
+  if (!primaryRole) return [];
   const roles: SowRoleRow[] = [
     { id: "primary", label: primaryRole, note: "Primary · full day rate" },
   ];
@@ -3004,11 +3009,10 @@ function buildDefaultSowDraft(deal: Deal, result: Recommendation | null, profile
     version: "1.0",
     docDate: today,
     projectDescription,
-    roles: buildSowRoles(deal, profile),
+    roles: buildSowRoles(deal, result, profile),
     lineItems: buildSowLineItems(deal, result, profile),
     usageRights: usageLabel,
-    revisions:
-      "Two rounds included on primary deliverables. Additional rounds: $250 each. Major creative pivots after picture lock are repriced.",
+    revisions: "",
     total: total > 0 ? String(total) : "",
     depositPercent: "",
     paymentSchedule: "",
@@ -3951,6 +3955,9 @@ function ExtraScreens({
 
   const handleOpenDocScreen = (id: "invoice" | "sow", returnTo?: ScreenId) => {
     setShowNegoSheet(false);
+    if (id === "sow") {
+      setSowDraft(buildDefaultSowDraft(deal, result, profile));
+    }
     openDocScreen(id, returnTo ?? (result ? "deal-result" : screen));
   };
   useEffect(() => {
@@ -5996,6 +6003,10 @@ export default function Page() {
   const dealNext = () => {
     if (dealStep === 1 && !deal.client.trim()) {
       showToast("Add the client name");
+      return;
+    }
+    if (dealStep === 2 && !deal.dealRole.trim()) {
+      showToast("Pick the position for this deal");
       return;
     }
     setDealStep((s) => Math.min(3, s + 1));
