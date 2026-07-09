@@ -104,6 +104,8 @@ interface Profile {
 
 interface Deal {
   client: string;
+  /** Who is hiring you — guides defaults and copy on the new-deal flow. */
+  clientType: string;
   publicAudience: string;
   brandMaturity: string;
   pricePoint: string;
@@ -249,6 +251,7 @@ const defaultProfile: Profile = {
 
 const defaultDeal: Deal = {
   client: "",
+  clientType: "",
   publicAudience: "",
   brandMaturity: "",
   pricePoint: "",
@@ -1171,6 +1174,13 @@ const PROJECT_VERTICALS = [
   "Social Media Content", "Stage Design", "Storyboard", "Street Styling", "TV Show",
   "Test Shoot", "Tour", "User Generated Content", "Video Installation", "Visualizer",
   "Vlog", "Web Series", "Website", "YouTube Video",
+];
+
+const CLIENT_TYPE_OPTIONS = [
+  { id: "brand", label: "Brand / company" },
+  { id: "agency", label: "Agency" },
+  { id: "influencer", label: "Influencer / creator" },
+  { id: "other", label: "Other" },
 ];
 
 const SOURCE_OPTIONS = [
@@ -3022,6 +3032,28 @@ function buildDefaultSowDraft(deal: Deal, result: Recommendation | null, profile
 
 function SowPreview({ draft }: { draft: SowDraft }) {
   const total = parseFloat(draft.total.replace(/,/g, "")) || 0;
+  const depositPercentRaw = draft.depositPercent.trim();
+  const depositPercent = depositPercentRaw
+    ? Math.max(0, Math.min(100, parseFloat(depositPercentRaw) || 0))
+    : null;
+  const depositAmount =
+    depositPercent != null && total > 0
+      ? Math.round(total * (depositPercent / 100) * 100) / 100
+      : null;
+  const balanceAmount =
+    depositAmount != null && total > 0 ? Math.round((total - depositAmount) * 100) / 100 : null;
+  const formatMoney = (n: number) => {
+    const hasCents = Math.round(n * 100) % 100 !== 0;
+    return n.toLocaleString("en-US", {
+      minimumFractionDigits: hasCents ? 2 : 0,
+      maximumFractionDigits: 2,
+    });
+  };
+  const autoPaymentSchedule =
+    depositAmount != null && balanceAmount != null && depositPercent != null
+      ? `$${formatMoney(depositAmount)} (${depositPercent}%) on signing · $${formatMoney(balanceAmount)} on final delivery`
+      : "";
+  const paymentScheduleDisplay = draft.paymentSchedule.trim() || autoPaymentSchedule || "—";
   const docDate = draft.docDate
     ? new Date(`${draft.docDate}T00:00:00`).toLocaleDateString("en-US", {
         month: "short",
@@ -3104,8 +3136,24 @@ function SowPreview({ draft }: { draft: SowDraft }) {
         <span>Total</span>
         <span>{total > 0 ? `$${fmt(Math.round(total))}` : "—"}</span>
       </div>
+      {depositAmount != null && total > 0 && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: 12,
+            marginTop: 8,
+            color: "#444",
+          }}
+        >
+          <span>
+            Deposit ({depositPercent}%)
+          </span>
+          <span style={{ fontWeight: 600 }}>${formatMoney(depositAmount)}</span>
+        </div>
+      )}
       <div style={{ fontSize: 11, color: "#888", marginTop: 6, whiteSpace: "pre-wrap" }}>
-        {draft.paymentSchedule || "—"}
+        {paymentScheduleDisplay}
       </div>
 
       <h3 style={{ fontSize: 14, margin: "14px 0 6px" }}>Cancellation</h3>
@@ -4183,10 +4231,65 @@ function ExtraScreens({
             <div className="deal-form-grid">
               <h2>Who is the client?</h2>
               <p className="muted small" style={{ margin: "6px 0 16px" }}>
-                Use the footprint signals below based on what you already know about their brand.
+                {deal.clientType === "influencer"
+                  ? "The creator is your client — price your shoot, edit, and usage rights, not their sponsorship fee."
+                  : "Use the footprint signals below based on what you already know about their brand."}
               </p>
               <div className="field">
-                <label>Company or contact name</label>
+                <label>Client type</label>
+                <Seg
+                  options={CLIENT_TYPE_OPTIONS}
+                  value={deal.clientType}
+                  onChange={(v) => {
+                    setDeal((d) => {
+                      if (v !== "influencer") return { ...d, clientType: v };
+                      return {
+                        ...d,
+                        clientType: v,
+                        companySize: d.companySize || "solo",
+                        project: d.project === "brand-video" ? "social" : d.project,
+                      };
+                    });
+                    if (v === "influencer") {
+                      if (!intelWhy) setIntelWhy("campaign-window");
+                      if (!intelCompanySize) setIntelCompanySize("solo");
+                    }
+                  }}
+                />
+              </div>
+              {deal.clientType === "influencer" && (
+                <div
+                  className="card"
+                  style={{
+                    background: "var(--grad-soft)",
+                    borderColor: "rgba(232,197,122,0.3)",
+                    marginBottom: 4,
+                  }}
+                >
+                  <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 600 }}>Brand-deal shoot checklist</p>
+                  <ul
+                    style={{
+                      margin: 0,
+                      paddingLeft: 18,
+                      fontSize: 13,
+                      color: "var(--text-2)",
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    <li>Who is the end brand (if sponsored)? Note it in scope on the next step.</li>
+                    <li>Will this run as paid ads or only on their channels? Set usage rights on step 2.</li>
+                    <li>How many deliverables and revision rounds?</li>
+                    <li>Hard post or sponsor deadline? Use Rush on step 2 if the timeline is tight.</li>
+                  </ul>
+                  <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-3)" }}>
+                    The brand&apos;s ad budget isn&apos;t your rate — scope, deliverables, and license are.
+                  </p>
+                </div>
+              )}
+              <div className="field">
+                <label>
+                  {deal.clientType === "influencer" ? "Creator name or handle" : "Company or contact name"}
+                </label>
                 <input
                   type="text"
                   value={deal.client}
@@ -4338,7 +4441,11 @@ function ExtraScreens({
                 <textarea
                   value={deal.scopeNotes}
                   onChange={(e) => setDeal((d) => ({ ...d, scopeNotes: e.target.value }))}
-                  placeholder="Describe any specific deliverables or goals not covered above…"
+                  placeholder={
+                    deal.clientType === "influencer"
+                      ? "e.g. 1 hero reel + 3 cutdowns, 2 revision rounds, sponsor: Brand X, delivery by June 15…"
+                      : "Describe any specific deliverables or goals not covered above…"
+                  }
                 />
               </div>
 
@@ -4465,6 +4572,12 @@ function ExtraScreens({
                 </div>
                 <div className="field">
                   <label>Usage rights</label>
+                  {deal.clientType === "influencer" && (
+                    <p className="helper" style={{ marginTop: 0, marginBottom: 8 }}>
+                      Ask whether the sponsor brand will boost this as paid ads — that changes the license even when your
+                      client is the creator.
+                    </p>
+                  )}
                   <Seg options={USAGE_OPTIONS} value={deal.usage} onChange={(v) => setDeal((d) => ({ ...d, usage: v }))} />
                   <div className="helper">{USAGE_HELPER[deal.usage] ?? USAGE_HELPER.organic}</div>
                 </div>
@@ -4786,7 +4899,9 @@ function ExtraScreens({
               <h2>Ask them this</h2>
               <div className="card" style={{ background: "var(--grad-soft)", borderColor: "rgba(232,197,122,0.3)" }}>
                 <p style={{ margin: 0, fontSize: 14 }}>
-                  Help me understand the business outcome — what does this unlock for you in the next 12 months.
+                  {deal.clientType === "influencer"
+                    ? "Confirm sponsor deadline, deliverable count, and whether paid usage is in scope — then tie your rate to that scope."
+                    : "Help me understand the business outcome — what does this unlock for you in the next 12 months."}
                 </p>
               </div>
 
