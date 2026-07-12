@@ -109,6 +109,11 @@ interface Deal {
   publicAudience: string;
   brandMaturity: string;
   pricePoint: string;
+  /** End brand on influencer / creator brand-deal shoots. */
+  sponsorBrand: string;
+  sponsorPublicAudience: string;
+  sponsorBrandMaturity: string;
+  sponsorPricePoint: string;
   source: string;
   project: string;
   shootDays: number;
@@ -255,6 +260,10 @@ const defaultDeal: Deal = {
   publicAudience: "",
   brandMaturity: "",
   pricePoint: "",
+  sponsorBrand: "",
+  sponsorPublicAudience: "",
+  sponsorBrandMaturity: "",
+  sponsorPricePoint: "",
   source: "referral",
   project: "brand-video",
   shootDays: 0,
@@ -471,36 +480,63 @@ function getEstimatedBaseDayRate(profile: Profile, role: string, tierOverride?: 
   return Math.round((veteranBase * tierMult) / 25) * 25;
 }
 
+const AUDIENCE_FOOTPRINT_MULT: Record<string, number> = {
+  "under-5k": 0.95,
+  "5k-25k": 1.0,
+  "25k-100k": 1.08,
+  "100k-500k": 1.16,
+  "500k-1m": 1.25,
+  "1m-plus": 1.35,
+};
+
+const MATURITY_FOOTPRINT_MULT: Record<string, number> = {
+  new: 0.95,
+  local: 1.0,
+  growth: 1.1,
+  established: 1.2,
+  enterprise: 1.35,
+};
+
+const PRICE_FOOTPRINT_MULT: Record<string, number> = {
+  low: 0.95,
+  mid: 1.0,
+  premium: 1.12,
+  luxury: 1.25,
+  b2b: 1.22,
+};
+
+function combinedFootprintMultiplier(audience: string, maturity: string, price: string): number {
+  return (
+    (AUDIENCE_FOOTPRINT_MULT[audience] ?? 1) *
+    (MATURITY_FOOTPRINT_MULT[maturity] ?? 1) *
+    (PRICE_FOOTPRINT_MULT[price] ?? 1)
+  );
+}
+
 function getPublicFootprintMultiplier(deal: Deal): number {
-  const audienceMult: Record<string, number> = {
-    "under-5k": 0.95,
-    "5k-25k": 1.0,
-    "25k-100k": 1.08,
-    "100k-500k": 1.16,
-    "500k-1m": 1.25,
-    "1m-plus": 1.35,
-  };
-  const maturityMult: Record<string, number> = {
-    new: 0.95,
-    local: 1.0,
-    growth: 1.1,
-    established: 1.2,
-    enterprise: 1.35,
-  };
-  const priceMult: Record<string, number> = {
-    low: 0.95,
-    mid: 1.0,
-    premium: 1.12,
-    luxury: 1.25,
-    b2b: 1.22,
-  };
+  const creator = combinedFootprintMultiplier(deal.publicAudience, deal.brandMaturity, deal.pricePoint);
 
-  const combined =
-    (audienceMult[deal.publicAudience] ?? 1) *
-    (maturityMult[deal.brandMaturity] ?? 1) *
-    (priceMult[deal.pricePoint] ?? 1);
+  if (deal.clientType !== "influencer") {
+    return Math.max(0.9, Math.min(1.45, creator));
+  }
 
-  return Math.max(0.9, Math.min(1.45, combined));
+  const hasSponsor =
+    deal.sponsorBrand.trim() ||
+    deal.sponsorPublicAudience ||
+    deal.sponsorBrandMaturity ||
+    deal.sponsorPricePoint;
+
+  if (!hasSponsor) {
+    return Math.max(0.9, Math.min(1.45, creator));
+  }
+
+  const sponsor = combinedFootprintMultiplier(
+    deal.sponsorPublicAudience,
+    deal.sponsorBrandMaturity,
+    deal.sponsorPricePoint,
+  );
+  const blended = Math.pow(creator, 0.35) * Math.pow(sponsor, 0.65);
+  return Math.max(0.9, Math.min(1.45, blended));
 }
 
 function computeRecommendation(profile: Profile, deal: Deal): Recommendation {
@@ -786,6 +822,11 @@ function computeRecommendation(profile: Profile, deal: Deal): Recommendation {
   if (["100k-500k", "500k-1m", "1m-plus"].includes(deal.publicAudience)) score += 1;
   if (["established", "enterprise"].includes(deal.brandMaturity)) score += 1;
   if (["premium", "luxury", "b2b"].includes(deal.pricePoint)) score += 1;
+  if (deal.clientType === "influencer") {
+    if (["100k-500k", "500k-1m", "1m-plus"].includes(deal.sponsorPublicAudience)) score += 1;
+    if (["established", "enterprise"].includes(deal.sponsorBrandMaturity)) score += 1;
+    if (["premium", "luxury", "b2b"].includes(deal.sponsorPricePoint)) score += 1;
+  }
 
   score = Math.max(1, Math.min(10, score));
 
@@ -1270,6 +1311,34 @@ const PRICE_POINT_OPTIONS = [
   { id: "premium", label: "Premium" },
   { id: "luxury", label: "Luxury / high-ticket" },
   { id: "b2b", label: "B2B / contract value" },
+];
+
+const CREATOR_FOLLOWING_OPTIONS = [
+  { id: "", label: "Follower count / unknown" },
+  { id: "under-5k", label: "Under 5K followers" },
+  { id: "5k-25k", label: "5K – 25K followers" },
+  { id: "25k-100k", label: "25K – 100K followers" },
+  { id: "100k-500k", label: "100K – 500K followers" },
+  { id: "500k-1m", label: "500K – 1M followers" },
+  { id: "1m-plus", label: "1M+ followers" },
+];
+
+const CREATOR_STAGE_OPTIONS = [
+  { id: "", label: "Creator stage / unknown" },
+  { id: "new", label: "New / just starting out" },
+  { id: "local", label: "Local or niche audience" },
+  { id: "growth", label: "Growing creator" },
+  { id: "established", label: "Established creator" },
+  { id: "enterprise", label: "Top-tier / household name" },
+];
+
+const CREATOR_EARNINGS_OPTIONS = [
+  { id: "", label: "How they earn / unknown" },
+  { id: "low", label: "Mostly gifted collabs & affiliate" },
+  { id: "mid", label: "Mid-ticket products or ad revenue" },
+  { id: "premium", label: "Premium products or courses" },
+  { id: "luxury", label: "High-ticket offers" },
+  { id: "b2b", label: "B2B or brand deals as main income" },
 ];
 
 const INTENT_OPTIONS = [
@@ -4276,10 +4345,10 @@ function ExtraScreens({
                       lineHeight: 1.55,
                     }}
                   >
-                    <li>Who is the end brand (if sponsored)? Note it in scope on the next step.</li>
                     <li>Will this run as paid ads or only on their channels? Set usage rights on step 2.</li>
                     <li>How many deliverables and revision rounds?</li>
                     <li>Hard post or sponsor deadline? Use Rush on step 2 if the timeline is tight.</li>
+                    <li>Add the sponsor brand and their footprint on the last step.</li>
                   </ul>
                   <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-3)" }}>
                     The brand&apos;s ad budget isn&apos;t your rate — scope, deliverables, and license are.
@@ -4297,33 +4366,45 @@ function ExtraScreens({
                 />
               </div>
               <div className="field">
-                <label>Public footprint signals</label>
+                <label>{deal.clientType === "influencer" ? "Creator signals" : "Public footprint signals"}</label>
                 <p className="helper">
-                  Audience and social presence are directional signals only, not verified budget facts. Use them alongside the client&apos;s business model, scope, and actual budget conversation.
+                  {deal.clientType === "influencer"
+                    ? "These describe the creator paying you — follower size, how established they are, and how they monetize. Directional only, not verified budget facts."
+                    : "Audience and social presence are directional signals only, not verified budget facts. Use them alongside the client's business model, scope, and actual budget conversation."}
                 </p>
                 <div className="footprint-grid" style={{ display: "grid", gap: 10 }}>
                   <select
                     value={deal.publicAudience}
                     onChange={(e) => setDeal((d) => ({ ...d, publicAudience: e.target.value }))}
                   >
-                    {PUBLIC_AUDIENCE_OPTIONS.map((opt) => (
-                      <option key={opt.id || "unknown-audience"} value={opt.id}>{opt.label}</option>
-                    ))}
+                    {(deal.clientType === "influencer" ? CREATOR_FOLLOWING_OPTIONS : PUBLIC_AUDIENCE_OPTIONS).map(
+                      (opt) => (
+                        <option key={opt.id || "unknown-audience"} value={opt.id}>
+                          {opt.label}
+                        </option>
+                      ),
+                    )}
                   </select>
                   <select
                     value={deal.brandMaturity}
                     onChange={(e) => setDeal((d) => ({ ...d, brandMaturity: e.target.value }))}
                   >
-                    {BRAND_MATURITY_OPTIONS.map((opt) => (
-                      <option key={opt.id || "unknown-maturity"} value={opt.id}>{opt.label}</option>
-                    ))}
+                    {(deal.clientType === "influencer" ? CREATOR_STAGE_OPTIONS : BRAND_MATURITY_OPTIONS).map(
+                      (opt) => (
+                        <option key={opt.id || "unknown-maturity"} value={opt.id}>
+                          {opt.label}
+                        </option>
+                      ),
+                    )}
                   </select>
                   <select
                     value={deal.pricePoint}
                     onChange={(e) => setDeal((d) => ({ ...d, pricePoint: e.target.value }))}
                   >
-                    {PRICE_POINT_OPTIONS.map((opt) => (
-                      <option key={opt.id || "unknown-price"} value={opt.id}>{opt.label}</option>
+                    {(deal.clientType === "influencer" ? CREATOR_EARNINGS_OPTIONS : PRICE_POINT_OPTIONS).map((opt) => (
+                      <option key={opt.id || "unknown-price"} value={opt.id}>
+                        {opt.label}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -4443,7 +4524,7 @@ function ExtraScreens({
                   onChange={(e) => setDeal((d) => ({ ...d, scopeNotes: e.target.value }))}
                   placeholder={
                     deal.clientType === "influencer"
-                      ? "e.g. 1 hero reel + 3 cutdowns, 2 revision rounds, sponsor: Brand X, delivery by June 15…"
+                      ? "e.g. 1 hero reel + 3 cutdowns, 2 revision rounds, delivery by June 15…"
                       : "Describe any specific deliverables or goals not covered above…"
                   }
                 />
@@ -4925,35 +5006,6 @@ function ExtraScreens({
 
               <div className="field-pair">
                 <div className="field">
-                  <label>Company size</label>
-                  <ChipGroup
-                    options={COMPANY_SIZE_OPTIONS}
-                    value={intelCompanySize}
-                    onChange={(v) => setIntelCompanySize(v as string)}
-                  />
-                </div>
-                <div className="field">
-                  <label>Expected annual revenue</label>
-                  <ChipGroup
-                    options={ANNUAL_REVENUE_OPTIONS}
-                    value={intelAnnualRevenue}
-                    onChange={(v) => setIntelAnnualRevenue(v as string)}
-                  />
-                </div>
-              </div>
-
-              <div className="field">
-                <label>What is one customer worth to them?</label>
-                <input
-                  value={intelLtv}
-                  onChange={(e) => setIntelLtv(e.target.value)}
-                  placeholder="e.g. $1,200/subscription or $500 product price"
-                />
-                <div className="helper">Customer LTV unlocks break-even analysis.</div>
-              </div>
-
-              <div className="field-pair">
-                <div className="field">
                   <label>Decision maker on the call?</label>
                   <Seg options={DM_OPTIONS} value={deal.dm} onChange={(v) => setDeal((d) => ({ ...d, dm: v }))} />
                 </div>
@@ -4970,6 +5022,114 @@ function ExtraScreens({
                 <label>Their stated budget (if any)</label>
                 <input value={intelBudget} onChange={(e) => setIntelBudget(e.target.value)} />
               </div>
+
+              {deal.clientType === "influencer" ? (
+                <>
+                  <div className="divider" />
+                  <div className="field">
+                    <label>Brand they&apos;re creating for</label>
+                    <p className="helper">
+                      Sponsored brand-deal shoots only. Skip if this is organic content with no sponsor — your creator
+                      signals above still apply.
+                    </p>
+                    <input
+                      type="text"
+                      value={deal.sponsorBrand}
+                      onChange={(e) => setDeal((d) => ({ ...d, sponsorBrand: e.target.value }))}
+                      placeholder="e.g. Nike, Glossier, local coffee shop…"
+                    />
+                  </div>
+                  <div className="field">
+                    <label>Sponsor brand signals</label>
+                    <p className="helper">
+                      The end brand&apos;s footprint — social reach, how established they are, and their product price
+                      tier. These weigh more than creator signals when estimating budget headroom.
+                    </p>
+                    <div className="footprint-grid" style={{ display: "grid", gap: 10 }}>
+                      <select
+                        value={deal.sponsorPublicAudience}
+                        onChange={(e) => setDeal((d) => ({ ...d, sponsorPublicAudience: e.target.value }))}
+                      >
+                        {PUBLIC_AUDIENCE_OPTIONS.map((opt) => (
+                          <option key={opt.id || "sponsor-audience"} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={deal.sponsorBrandMaturity}
+                        onChange={(e) => setDeal((d) => ({ ...d, sponsorBrandMaturity: e.target.value }))}
+                      >
+                        {BRAND_MATURITY_OPTIONS.map((opt) => (
+                          <option key={opt.id || "sponsor-maturity"} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={deal.sponsorPricePoint}
+                        onChange={(e) => setDeal((d) => ({ ...d, sponsorPricePoint: e.target.value }))}
+                      >
+                        {PRICE_POINT_OPTIONS.map((opt) => (
+                          <option key={opt.id || "sponsor-price"} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="field-pair">
+                    <div className="field">
+                      <label>Company size</label>
+                      <ChipGroup
+                        options={COMPANY_SIZE_OPTIONS}
+                        value={intelCompanySize}
+                        onChange={(v) => setIntelCompanySize(v as string)}
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Expected annual revenue</label>
+                      <ChipGroup
+                        options={ANNUAL_REVENUE_OPTIONS}
+                        value={intelAnnualRevenue}
+                        onChange={(v) => setIntelAnnualRevenue(v as string)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="field">
+                    <label>What is one customer worth to them?</label>
+                    <input
+                      value={intelLtv}
+                      onChange={(e) => setIntelLtv(e.target.value)}
+                      placeholder="e.g. $1,200/subscription or $500 product price"
+                    />
+                    <div className="helper">Customer LTV unlocks break-even analysis.</div>
+                  </div>
+
+                  <div className="field-pair">
+                    <div className="field">
+                      <label>Decision maker on the call?</label>
+                      <Seg options={DM_OPTIONS} value={deal.dm} onChange={(v) => setDeal((d) => ({ ...d, dm: v }))} />
+                    </div>
+                    <div className="field">
+                      <label>Their budget stance</label>
+                      <Seg
+                        options={BUDGET_OPTIONS}
+                        value={deal.budgetStance}
+                        onChange={(v) => setDeal((d) => ({ ...d, budgetStance: v }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="field">
+                    <label>Their stated budget (if any)</label>
+                    <input value={intelBudget} onChange={(e) => setIntelBudget(e.target.value)} />
+                  </div>
+                </>
+              )}
               <div className="btn-row">
                 <button type="button" className="btn btn-ghost" onClick={dealBack}>
                   Back
