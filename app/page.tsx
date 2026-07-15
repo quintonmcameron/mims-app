@@ -85,6 +85,14 @@ interface GearItem {
   cost: string;
 }
 
+/** House / third-party equipment you rent for the job (pass-through cost). */
+interface EquipmentRentalItem {
+  id: string;
+  name: string;
+  /** Approximate rental cost for this deal (usually total rental for the job). */
+  cost: string;
+}
+
 interface Profile {
   name: string;
   email: string;
@@ -150,6 +158,9 @@ interface Deal {
   kitFeeCustom: string;
   kitFeeLockerItems: string[];
   kitFeeRate: string;
+  /** Whether you're renting gear from a house / shop for this deal. */
+  equipmentRentalsEnabled: boolean;
+  equipmentRentals: EquipmentRentalItem[];
   mediaStorageProvider: string;
   mediaStorageTier: string;
   chargeDitFee: boolean;
@@ -202,6 +213,8 @@ interface CrewSplit {
   additionalCrewTotal: number;
   kitFeeTotal: number;
   kitFeeLabel: string;
+  equipmentRentals: EquipmentRentalItem[];
+  equipmentRentalTotal: number;
   mediaStorageTotal: number;
   mediaStorageLabel: string;
   mediaStorageDriveNote: string;
@@ -297,10 +310,32 @@ const defaultDeal: Deal = {
   kitFeeCustom: "",
   kitFeeLockerItems: [],
   kitFeeRate: "0.05",
+  equipmentRentalsEnabled: false,
+  equipmentRentals: [],
   mediaStorageProvider: "",
   mediaStorageTier: "",
   chargeDitFee: false,
 };
+
+/** Common rental house items with approximate day rates (USD, indie / non-union ballpark). */
+const EQUIPMENT_RENTAL_PRESETS: { name: string; approxDay: number }[] = [
+  { name: "Cinema camera body", approxDay: 450 },
+  { name: "Prime lens set", approxDay: 200 },
+  { name: "Zoom lens", approxDay: 125 },
+  { name: "LED lighting package", approxDay: 150 },
+  { name: "Wireless lav / sound kit", approxDay: 100 },
+  { name: "Gimbal / stabilizer", approxDay: 85 },
+  { name: "On-set monitor", approxDay: 75 },
+  { name: "Tripod / sticks", approxDay: 40 },
+];
+
+function newEquipmentRentalId(): string {
+  return `rental-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function equipmentRentalTotal(items: EquipmentRentalItem[]): number {
+  return items.reduce((sum, item) => sum + (parseMoney(item.cost) || 0), 0);
+}
 
 function tradeLabel(t: string): string {
   return t || "Creative";
@@ -762,7 +797,11 @@ function computeRecommendation(profile: Profile, deal: Deal): Recommendation {
     ditFeeTotal = ditDayRate * ditDays;
   }
 
-  const passThroughTotal = kitFeeTotal + additionalCrewTotal + mediaStorageTotal + ditFeeTotal;
+  const rentalItems = deal.equipmentRentalsEnabled ? deal.equipmentRentals : [];
+  const equipmentRentalTotalAmt = equipmentRentalTotal(rentalItems);
+
+  const passThroughTotal =
+    kitFeeTotal + additionalCrewTotal + mediaStorageTotal + ditFeeTotal + equipmentRentalTotalAmt;
 
   // Scope services: each selected service multiplies the base labor
   const scopeServicesMult = (deal.scopeServices ?? []).reduce(
@@ -889,6 +928,8 @@ function computeRecommendation(profile: Profile, deal: Deal): Recommendation {
     additionalCrewTotal,
     kitFeeTotal,
     kitFeeLabel,
+    equipmentRentals: rentalItems.filter((item) => (parseMoney(item.cost) || 0) > 0 || item.name.trim()),
+    equipmentRentalTotal: equipmentRentalTotalAmt,
     mediaStorageTotal,
     mediaStorageLabel,
     mediaStorageDriveNote,
@@ -2821,6 +2862,16 @@ function buildInvoiceLines(deal: Deal, result: Recommendation | null, profile: P
       amount: cs.kitFeeTotal,
     });
   }
+  for (const rental of cs.equipmentRentals) {
+    const amount = parseMoney(rental.cost) || 0;
+    if (amount <= 0) continue;
+    lines.push({
+      item: `Equipment rental · ${rental.name.trim() || "Rental item"}`,
+      qty: "1",
+      rate: amount,
+      amount,
+    });
+  }
 
   const lineTotal = lines.reduce((sum, line) => sum + line.amount, 0);
   const target = result?.target ?? lineTotal;
@@ -3042,6 +3093,12 @@ function buildSowLineItems(deal: Deal, result: Recommendation | null, profile: P
     );
   }
   if (cs.kitFeeTotal > 0) push("Equipment / kit rental", cs.kitFeeTotal);
+  cs.equipmentRentals.forEach((rental) => {
+    const amount = parseMoney(rental.cost) || 0;
+    if (amount > 0) {
+      push(`Equipment rental · ${rental.name.trim() || "Rental item"}`, amount);
+    }
+  });
   return lines;
 }
 
@@ -3290,6 +3347,7 @@ function CrewSplitCard({ cs }: { cs: CrewSplit }) {
     postPhaseTotal +
     cs.usageLicense +
     cs.kitFeeTotal +
+    cs.equipmentRentalTotal +
     cs.additionalCrewTotal +
     cs.mediaStorageTotal +
     cs.ditFeeTotal;
@@ -3510,6 +3568,30 @@ function CrewSplitCard({ cs }: { cs: CrewSplit }) {
             </div>
             <span style={{ ...amountStyle, color: "var(--gold)" }}>${fmt(cs.kitFeeTotal)}</span>
           </div>
+        </>
+      )}
+
+      {/* Third-party equipment rentals */}
+      {cs.equipmentRentalTotal > 0 && (
+        <>
+          <div style={{ height: 1, background: "var(--border)", margin: "4px 0 12px" }} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+            <span style={sectionLabelStyle}>Equipment rentals</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "var(--gold)" }}>${fmt(cs.equipmentRentalTotal)}</span>
+          </div>
+          {cs.equipmentRentals.map((rental) => {
+            const amount = parseMoney(rental.cost) || 0;
+            if (amount <= 0 && !rental.name.trim()) return null;
+            return (
+              <div key={rental.id} style={rowStyle}>
+                <div>
+                  <div style={lineNameStyle}>{rental.name.trim() || "Rental item"}</div>
+                  <div style={lineSubStyle}>House / third-party rental</div>
+                </div>
+                <span style={amountStyle}>${fmt(amount)}</span>
+              </div>
+            );
+          })}
         </>
       )}
 
@@ -4167,6 +4249,13 @@ function ExtraScreens({
               deal.usage === "paid"        && { l: "PAID",  bg: "rgba(255,122,102,.12)", bd: "rgba(255,122,102,.35)", c: "#ff7a66" },
               deal.usage === "broadcast"   && { l: "TV",   bg: "rgba(255,122,102,.12)", bd: "rgba(255,122,102,.35)", c: "#ff7a66" },
               (deal.kitFee && deal.kitFee !== "") && { l: "KIT",   bg: "rgba(232,197,122,.12)", bd: "rgba(232,197,122,.35)", c: "#e8c57a" },
+              deal.equipmentRentalsEnabled &&
+                equipmentRentalTotal(deal.equipmentRentals) > 0 && {
+                  l: "RENT",
+                  bg: "rgba(255,122,102,.12)",
+                  bd: "rgba(255,122,102,.35)",
+                  c: "#ff7a66",
+                },
               intelCompanySize === "enterprise" && { l: "ENT+",  bg: "rgba(232,197,122,.12)", bd: "rgba(232,197,122,.35)", c: "#e8c57a" },
               intelCompanySize === "midmarket"  && { l: "MKT",   bg: "rgba(201,160,94,.12)",  bd: "rgba(201,160,94,.35)",  c: "#c9a05e" },
               intelWhy === "paid-media"         && { l: "ROI×",  bg: "rgba(94,226,160,.12)",  bd: "rgba(94,226,160,.35)",  c: "#5ee2a0" },
@@ -4961,6 +5050,301 @@ function ExtraScreens({
                         </div>
                       </>
                     )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Third-party equipment rentals (house rentals) */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-2)", marginBottom: 8 }}>
+                  Equipment rentals
+                </div>
+                <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 10 }}>
+                  Will you rent gear from a house or shop for this shoot? Separate from billing your own kit.
+                </div>
+
+                <div style={{ display: "flex", gap: 8, marginBottom: deal.equipmentRentalsEnabled ? 12 : 0 }}>
+                  {(["no", "yes"] as const).map((choice) => {
+                    const isYes = choice === "yes";
+                    const isActive = isYes ? deal.equipmentRentalsEnabled : !deal.equipmentRentalsEnabled;
+                    return (
+                      <button
+                        key={choice}
+                        type="button"
+                        onClick={() =>
+                          setDeal((d) => ({
+                            ...d,
+                            equipmentRentalsEnabled: isYes,
+                            equipmentRentals:
+                              isYes && d.equipmentRentals.length === 0
+                                ? [{ id: newEquipmentRentalId(), name: "", cost: "" }]
+                                : d.equipmentRentals,
+                          }))
+                        }
+                        style={{
+                          flex: 1,
+                          padding: "13px 0",
+                          borderRadius: 12,
+                          border: `1px solid ${isActive ? (isYes ? "rgba(232,197,122,0.5)" : "var(--border-2)") : "var(--border)"}`,
+                          background: isActive ? (isYes ? "var(--grad-soft)" : "var(--surface-2)") : "var(--surface)",
+                          color: isActive ? (isYes ? "var(--gold)" : "var(--text)") : "var(--text-3)",
+                          fontWeight: 600,
+                          fontSize: 14,
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        {isYes ? "Yes, renting gear" : "No rentals"}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div
+                  style={{
+                    maxHeight: deal.equipmentRentalsEnabled ? 900 : 0,
+                    opacity: deal.equipmentRentalsEnabled ? 1 : 0,
+                    overflow: "hidden",
+                    transition: "max-height 0.38s cubic-bezier(0.4,0,0.2,1), opacity 0.28s ease",
+                  }}
+                >
+                  <div
+                    style={{
+                      background: "rgba(255,255,255,0.018)",
+                      border: "1px solid rgba(232,197,122,0.2)",
+                      borderRadius: 14,
+                      overflow: "hidden",
+                      backdropFilter: "blur(16px)",
+                      WebkitBackdropFilter: "blur(16px)",
+                      padding: "12px",
+                    }}
+                  >
+                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-3)", marginBottom: 8 }}>
+                      Quick add (approx. / day)
+                    </div>
+                    <div className="chips" style={{ marginBottom: 12 }}>
+                      {EQUIPMENT_RENTAL_PRESETS.map((preset) => {
+                        const already = deal.equipmentRentals.some(
+                          (r) => r.name.toLowerCase() === preset.name.toLowerCase(),
+                        );
+                        return (
+                          <div
+                            key={preset.name}
+                            role="button"
+                            tabIndex={0}
+                            className={`chip${already ? " active" : ""}`}
+                            onClick={() => {
+                              if (already) return;
+                              setDeal((d) => ({
+                                ...d,
+                                equipmentRentals: [
+                                  ...d.equipmentRentals.filter((r) => r.name.trim() || r.cost.trim()),
+                                  {
+                                    id: newEquipmentRentalId(),
+                                    name: preset.name,
+                                    cost: String(preset.approxDay),
+                                  },
+                                ],
+                              }));
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                if (already) return;
+                                setDeal((d) => ({
+                                  ...d,
+                                  equipmentRentals: [
+                                    ...d.equipmentRentals.filter((r) => r.name.trim() || r.cost.trim()),
+                                    {
+                                      id: newEquipmentRentalId(),
+                                      name: preset.name,
+                                      cost: String(preset.approxDay),
+                                    },
+                                  ],
+                                }));
+                              }
+                            }}
+                          >
+                            {preset.name}
+                            <span style={{ display: "block", fontSize: 10, fontWeight: 500, opacity: 0.85, marginTop: 2 }}>
+                              ~${fmt(preset.approxDay)}/day
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div style={{ display: "grid", gap: 8, marginBottom: 10 }}>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr 110px 36px",
+                          gap: 8,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          letterSpacing: "0.08em",
+                          textTransform: "uppercase",
+                          color: "var(--text-3)",
+                          padding: "0 2px",
+                        }}
+                      >
+                        <span>Item</span>
+                        <span>Rental $</span>
+                        <span />
+                      </div>
+                      {deal.equipmentRentals.map((rental) => (
+                        <div
+                          key={rental.id}
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 110px 36px",
+                            gap: 8,
+                            alignItems: "center",
+                          }}
+                        >
+                          <input
+                            type="text"
+                            placeholder="e.g. Alexa Mini package"
+                            value={rental.name}
+                            onChange={(e) => {
+                              const name = e.target.value;
+                              setDeal((d) => ({
+                                ...d,
+                                equipmentRentals: d.equipmentRentals.map((r) =>
+                                  r.id === rental.id ? { ...r, name } : r,
+                                ),
+                              }));
+                            }}
+                            style={{
+                              width: "100%",
+                              background: "var(--elevated)",
+                              border: "1px solid var(--border-2)",
+                              borderRadius: 10,
+                              padding: "11px 12px",
+                              fontSize: 14,
+                              color: "var(--text)",
+                              fontFamily: "inherit",
+                              outline: "none",
+                            }}
+                          />
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              background: "var(--elevated)",
+                              border: "1px solid var(--border-2)",
+                              borderRadius: 10,
+                              overflow: "hidden",
+                            }}
+                          >
+                            <span style={{ padding: "0 8px", fontSize: 14, fontWeight: 700, color: "var(--gold)", flexShrink: 0 }}>
+                              $
+                            </span>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              placeholder="0"
+                              value={rental.cost}
+                              onChange={(e) => {
+                                const cost = e.target.value;
+                                setDeal((d) => ({
+                                  ...d,
+                                  equipmentRentals: d.equipmentRentals.map((r) =>
+                                    r.id === rental.id ? { ...r, cost } : r,
+                                  ),
+                                }));
+                              }}
+                              style={{
+                                width: "100%",
+                                background: "transparent",
+                                border: "none",
+                                outline: "none",
+                                padding: "11px 10px 11px 0",
+                                fontSize: 14,
+                                color: "var(--text)",
+                                fontFamily: "inherit",
+                              }}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            aria-label="Remove rental item"
+                            onClick={() =>
+                              setDeal((d) => ({
+                                ...d,
+                                equipmentRentals: d.equipmentRentals.filter((r) => r.id !== rental.id),
+                              }))
+                            }
+                            style={{
+                              width: 36,
+                              height: 42,
+                              borderRadius: 10,
+                              border: "1px solid var(--border)",
+                              background: "var(--surface)",
+                              color: "var(--text-3)",
+                              cursor: "pointer",
+                              fontSize: 18,
+                              lineHeight: 1,
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDeal((d) => ({
+                          ...d,
+                          equipmentRentals: [
+                            ...d.equipmentRentals,
+                            { id: newEquipmentRentalId(), name: "", cost: "" },
+                          ],
+                        }))
+                      }
+                      style={{
+                        width: "100%",
+                        padding: "11px 12px",
+                        borderRadius: 10,
+                        border: "1px dashed var(--border-2)",
+                        background: "transparent",
+                        color: "var(--gold)",
+                        fontWeight: 600,
+                        fontSize: 13,
+                        cursor: "pointer",
+                        marginBottom: 10,
+                      }}
+                    >
+                      + Add rental item
+                    </button>
+
+                    {equipmentRentalTotal(deal.equipmentRentals) > 0 && (
+                      <div
+                        style={{
+                          padding: "8px 12px",
+                          background: "rgba(232,197,122,0.06)",
+                          borderRadius: 8,
+                          border: "1px solid rgba(232,197,122,0.15)",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <div style={{ fontSize: 11, color: "var(--text-3)" }}>
+                          Pass-through rental total
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--gold)" }}>
+                          ${fmt(equipmentRentalTotal(deal.equipmentRentals))}
+                        </div>
+                      </div>
+                    )}
+
+                    <p className="helper" style={{ marginTop: 10, marginBottom: 0 }}>
+                      Enter the total you&apos;ll pay the rental house for this job (multiply day rate × days if needed).
+                      Costs pass through to the estimate — they don&apos;t raise your day rate.
+                    </p>
                   </div>
                 </div>
               </div>
