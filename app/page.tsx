@@ -2687,6 +2687,13 @@ function DealItem({
   );
 }
 
+type InvoiceDraftLine = {
+  id: string;
+  item: string;
+  qty: string;
+  rate: number;
+};
+
 type InvoiceDraft = {
   invoiceNumber: string;
   billedToName: string;
@@ -2696,7 +2703,9 @@ type InvoiceDraft = {
   dueDate: string;
   terms: string;
   depositPercent: string;
+  depositDueDate: string;
   paymentNote: string;
+  lineItems: InvoiceDraftLine[];
 };
 
 type SowLineItem = {
@@ -2733,6 +2742,37 @@ type InvoiceLine = {
   rate: number;
   amount: number;
 };
+
+function invoiceDraftLineAmount(line: InvoiceDraftLine): number {
+  const qty = parseFloat(String(line.qty).replace(/,/g, "")) || 0;
+  return Math.round(qty * (line.rate || 0) * 100) / 100;
+}
+
+function toInvoiceDraftLines(lines: InvoiceLine[]): InvoiceDraftLine[] {
+  return lines.map((line, index) => ({
+    id: `inv-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`,
+    item: line.item,
+    qty: line.qty,
+    rate: line.rate,
+  }));
+}
+
+function resolveInvoiceLines(
+  draft: InvoiceDraft,
+  deal: Deal,
+  result: Recommendation | null,
+  profile: Profile,
+): InvoiceLine[] {
+  if (draft.lineItems.length > 0) {
+    return draft.lineItems.map((line) => ({
+      item: line.item || "Line item",
+      qty: line.qty || "1",
+      rate: line.rate || 0,
+      amount: invoiceDraftLineAmount(line),
+    }));
+  }
+  return buildInvoiceLines(deal, result, profile);
+}
 
 function buildScopeServiceLines(deal: Deal, cs: CrewSplit): Array<{ label: string; amount: number }> {
   const scopeBase =
@@ -2891,7 +2931,7 @@ function buildInvoiceLines(deal: Deal, result: Recommendation | null, profile: P
 function InvoicePreview({ deal, result, profile, draft }: { deal: Deal; result: Recommendation | null; profile: Profile; draft: InvoiceDraft }) {
   const creator = profile.name || "Your Studio";
   const creatorEmail = profile.email || "you@studio.com";
-  const lines = buildInvoiceLines(deal, result, profile);
+  const lines = resolveInvoiceLines(draft, deal, result, profile);
   const subtotal = lines.reduce((sum, line) => sum + line.amount, 0);
   const depositPercentRaw = draft.depositPercent.trim();
   const depositPercent = depositPercentRaw
@@ -2908,7 +2948,11 @@ function InvoicePreview({ deal, result, profile, draft }: { deal: Deal; result: 
   };
   const issued = draft.issuedDate ? new Date(`${draft.issuedDate}T00:00:00`) : new Date("2026-01-01T00:00:00");
   const due = draft.dueDate ? new Date(`${draft.dueDate}T00:00:00`) : issued;
+  const depositDue = draft.depositDueDate ? new Date(`${draft.depositDueDate}T00:00:00`) : null;
   const dateFmt = (date: Date) => date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const depositDueLabel = depositDue
+    ? `due ${dateFmt(depositDue)}`
+    : "due now";
 
   return (
     <div className="doc-preview">
@@ -2948,6 +2992,14 @@ function InvoicePreview({ deal, result, profile, draft }: { deal: Deal; result: 
           <div>
             {[draft.terms, draft.dueDate ? dateFmt(due) : ""].filter(Boolean).join(" · ") || "—"}
           </div>
+          {depositPercent != null && (
+            <>
+              <div className="label-sm" style={{ marginTop: 8 }}>
+                Deposit due
+              </div>
+              <div>{depositDue ? dateFmt(depositDue) : "Upon issue / signing"}</div>
+            </>
+          )}
         </div>
       </div>
 
@@ -2992,7 +3044,9 @@ function InvoicePreview({ deal, result, profile, draft }: { deal: Deal; result: 
             marginTop: 6,
           }}
         >
-          <span style={{ color: "#6F6F6F" }}>{depositPercent}% deposit (due now)</span>
+          <span style={{ color: "#6F6F6F" }}>
+            {depositPercent}% deposit ({depositDueLabel})
+          </span>
           <span>${formatMoney(deposit)}</span>
         </div>
       )}
@@ -4145,18 +4199,38 @@ function ExtraScreens({
     dueDate: "",
     terms: "",
     depositPercent: "",
+    depositDueDate: "",
     paymentNote: "",
+    lineItems: [],
   });
   const [sowDraft, setSowDraft] = useState<SowDraft>(() => buildDefaultSowDraft(deal, result, profile));
   const refreshSowFromDeal = useCallback(() => {
     setSowDraft(buildDefaultSowDraft(deal, result, profile));
     showToast("SOW refreshed from deal estimate");
   }, [deal, result, profile, showToast]);
+  const refreshInvoiceFromDeal = useCallback(() => {
+    setInvoiceDraft((draft) => ({
+      ...draft,
+      billedToName: draft.billedToName || deal.client,
+      lineItems: toInvoiceDraftLines(buildInvoiceLines(deal, result, profile)),
+    }));
+    showToast("Invoice lines refreshed from deal estimate");
+  }, [deal, result, profile, showToast]);
 
   const handleOpenDocScreen = (id: "invoice" | "sow", returnTo?: ScreenId) => {
     setShowNegoSheet(false);
     if (id === "sow") {
       setSowDraft(buildDefaultSowDraft(deal, result, profile));
+    }
+    if (id === "invoice") {
+      setInvoiceDraft((draft) => ({
+        ...draft,
+        billedToName: draft.billedToName || deal.client,
+        lineItems:
+          draft.lineItems.length > 0
+            ? draft.lineItems
+            : toInvoiceDraftLines(buildInvoiceLines(deal, result, profile)),
+      }));
     }
     openDocScreen(id, returnTo ?? (result ? "deal-result" : screen));
   };
@@ -6114,9 +6188,14 @@ function ExtraScreens({
         </div>
         <div className="screen-pad">
           <div className="card" style={{ marginBottom: 14 }}>
-            <div className="eyebrow" style={{ marginBottom: 8 }}>Invoice editor</div>
+            <div className="card-row" style={{ marginBottom: 8 }}>
+              <div className="eyebrow">Invoice editor</div>
+              <button type="button" className="badge" onClick={refreshInvoiceFromDeal}>
+                Refresh from deal
+              </button>
+            </div>
             <p className="muted small" style={{ margin: "0 0 14px" }}>
-              These fields feed the invoice preview below. Line items come from the current deal estimate.
+              Edit rates and dates below. The preview updates as you type. Use refresh to pull line items from your current estimate.
             </p>
             <div className="field">
               <label>Invoice number</label>
@@ -6162,7 +6241,7 @@ function ExtraScreens({
                 />
               </div>
               <div className="field">
-                <label>Due date</label>
+                <label>Final due date</label>
                 <input
                   type="date"
                   value={invoiceDraft.dueDate}
@@ -6190,7 +6269,156 @@ function ExtraScreens({
                 />
               </div>
             </div>
-            <div className="field" style={{ marginBottom: 0 }}>
+            <div className="field">
+              <label>Deposit due date</label>
+              <input
+                type="date"
+                value={invoiceDraft.depositDueDate}
+                onChange={(e) => setInvoiceDraft((d) => ({ ...d, depositDueDate: e.target.value }))}
+              />
+              <p className="helper" style={{ marginTop: 6 }}>
+                Separate from the final invoice due date — when the deposit must be paid.
+              </p>
+            </div>
+
+            <div className="field" style={{ marginTop: 4 }}>
+              <div className="card-row" style={{ marginBottom: 8 }}>
+                <label style={{ margin: 0 }}>Line items / rates</label>
+                <button
+                  type="button"
+                  className="badge"
+                  onClick={() =>
+                    setInvoiceDraft((d) => ({
+                      ...d,
+                      lineItems: [
+                        ...d.lineItems,
+                        {
+                          id: `inv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                          item: "",
+                          qty: "1",
+                          rate: 0,
+                        },
+                      ],
+                    }))
+                  }
+                >
+                  + Add line
+                </button>
+              </div>
+              {invoiceDraft.lineItems.map((line, index) => {
+                const amount = invoiceDraftLineAmount(line);
+                return (
+                  <div key={line.id} style={{ display: "flex", gap: 8, alignItems: "flex-end", marginBottom: 8 }}>
+                    <div className="field" style={{ marginBottom: 0, flex: 2 }}>
+                      {index === 0 ? <label>Item</label> : null}
+                      <input
+                        value={line.item}
+                        onChange={(e) =>
+                          setInvoiceDraft((d) => ({
+                            ...d,
+                            lineItems: d.lineItems.map((l, i) =>
+                              i === index ? { ...l, item: e.target.value } : l,
+                            ),
+                          }))
+                        }
+                        placeholder="Service or deliverable"
+                      />
+                    </div>
+                    <div className="field" style={{ marginBottom: 0, width: 72, flexShrink: 0 }}>
+                      {index === 0 ? <label>Qty</label> : null}
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={line.qty}
+                        onChange={(e) =>
+                          setInvoiceDraft((d) => ({
+                            ...d,
+                            lineItems: d.lineItems.map((l, i) =>
+                              i === index ? { ...l, qty: e.target.value } : l,
+                            ),
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="field" style={{ marginBottom: 0, width: 100, flexShrink: 0 }}>
+                      {index === 0 ? <label>Rate</label> : null}
+                      <input
+                        type="number"
+                        min="0"
+                        value={line.rate || ""}
+                        onChange={(e) =>
+                          setInvoiceDraft((d) => ({
+                            ...d,
+                            lineItems: d.lineItems.map((l, i) =>
+                              i === index ? { ...l, rate: parseFloat(e.target.value) || 0 } : l,
+                            ),
+                          }))
+                        }
+                        placeholder="0"
+                      />
+                    </div>
+                    <div
+                      style={{
+                        width: 84,
+                        flexShrink: 0,
+                        paddingBottom: 12,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        textAlign: "right",
+                        color: "var(--text-2)",
+                      }}
+                    >
+                      ${fmt(Math.round(amount))}
+                    </div>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      style={{ flexShrink: 0, marginBottom: 0 }}
+                      aria-label="Remove line item"
+                      onClick={() =>
+                        setInvoiceDraft((d) => ({
+                          ...d,
+                          lineItems: d.lineItems.filter((_, i) => i !== index),
+                        }))
+                      }
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
+              {invoiceDraft.lineItems.length === 0 && (
+                <p className="muted small" style={{ margin: 0 }}>
+                  No line items yet. Refresh from deal or add a line manually.
+                </p>
+              )}
+              {invoiceDraft.lineItems.length > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginTop: 8,
+                    paddingTop: 10,
+                    borderTop: "1px solid var(--border)",
+                    fontSize: 13,
+                    fontWeight: 700,
+                  }}
+                >
+                  <span>Subtotal</span>
+                  <span>
+                    $
+                    {fmt(
+                      Math.round(
+                        invoiceDraft.lineItems.reduce((sum, line) => sum + invoiceDraftLineAmount(line), 0),
+                      ),
+                    )}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="field" style={{ marginBottom: 0, marginTop: 12 }}>
               <label>Payment note</label>
               <textarea
                 value={invoiceDraft.paymentNote}
@@ -6219,7 +6447,7 @@ function ExtraScreens({
               className="btn btn-secondary"
               onClick={async () => {
                 try {
-                  const lines = buildInvoiceLines(deal, result, profile);
+                  const lines = resolveInvoiceLines(invoiceDraft, deal, result, profile);
                   const creator = profile.name || "Your Studio";
                   const issued = invoiceDraft.issuedDate
                     ? new Date(`${invoiceDraft.issuedDate}T00:00:00`)
@@ -6227,6 +6455,9 @@ function ExtraScreens({
                   const due = invoiceDraft.dueDate
                     ? new Date(`${invoiceDraft.dueDate}T00:00:00`)
                     : issued;
+                  const depositDue = invoiceDraft.depositDueDate
+                    ? new Date(`${invoiceDraft.depositDueDate}T00:00:00`)
+                    : null;
                   const dateFmt = (date: Date) =>
                     date.toLocaleDateString("en-US", {
                       month: "short",
@@ -6246,6 +6477,7 @@ function ExtraScreens({
                         .filter(Boolean)
                         .join(" · ") || "—",
                     depositPercent: invoiceDraft.depositPercent,
+                    depositDueLabel: depositDue ? dateFmt(depositDue) : "",
                     paymentNote: invoiceDraft.paymentNote,
                     lines,
                   });

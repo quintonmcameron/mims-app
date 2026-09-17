@@ -17,6 +17,7 @@ export type InvoicePdfInput = {
   issuedLabel: string;
   dueLabel: string;
   depositPercent: string;
+  depositDueLabel: string;
   paymentNote: string;
   lines: InvoicePdfLine[];
 };
@@ -263,6 +264,13 @@ export async function downloadInvoicePdf(input: InvoicePdfInput): Promise<void> 
     x: rightX,
     maxWidth: width - margin - rightX,
   });
+  if (input.depositDueLabel) {
+    drawText(ctx, `Deposit due  ${input.depositDueLabel}`, {
+      size: 9,
+      x: rightX,
+      maxWidth: width - margin - rightX,
+    });
+  }
   ctx.y = Math.min(afterLeft, ctx.y) - 10;
   drawRule(ctx);
 
@@ -298,7 +306,8 @@ export async function downloadInvoicePdf(input: InvoicePdfInput): Promise<void> 
   drawRule(ctx);
   drawText(ctx, `Subtotal          ${fmtMoney(Math.round(subtotal))}`, { size: 10 });
   if (deposit != null && depositPercent != null) {
-    drawText(ctx, `${depositPercent}% deposit (due now)          ${fmtMoney(deposit)}`, { size: 10 });
+    const dueNote = input.depositDueLabel ? `due ${input.depositDueLabel}` : "due now";
+    drawText(ctx, `${depositPercent}% deposit (${dueNote})          ${fmtMoney(deposit)}`, { size: 10 });
   }
   drawText(ctx, `Total due          ${fmtMoney(Math.round(subtotal))}`, { size: 12, bold: true });
   ctx.y -= 6;
