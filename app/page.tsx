@@ -29,6 +29,7 @@ import {
 } from "@/lib/mims/billing";
 import { FlatRateScopePanel } from "@/components/mims/FlatRateScopePanel";
 import { ProductionBudgetPanel } from "@/components/mims/ProductionBudgetPanel";
+import { downloadInvoicePdf, downloadSowPdf } from "@/lib/mims/doc-pdf";
 import type { FlatComplexity } from "@/lib/mims/flat-rate-scope";
 import {
   computeDerivedEstimatedDays,
@@ -6212,9 +6213,54 @@ function ExtraScreens({
               onToast={showToast}
             />
           )}
-          <button type="button" className="btn btn-primary" onClick={() => showToast("Invoice send flow coming soon")}>
-            Send
-          </button>
+          <div className="btn-row" style={{ marginTop: 12 }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={async () => {
+                try {
+                  const lines = buildInvoiceLines(deal, result, profile);
+                  const creator = profile.name || "Your Studio";
+                  const issued = invoiceDraft.issuedDate
+                    ? new Date(`${invoiceDraft.issuedDate}T00:00:00`)
+                    : new Date();
+                  const due = invoiceDraft.dueDate
+                    ? new Date(`${invoiceDraft.dueDate}T00:00:00`)
+                    : issued;
+                  const dateFmt = (date: Date) =>
+                    date.toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    });
+                  await downloadInvoicePdf({
+                    creator,
+                    creatorEmail: profile.email || "",
+                    invoiceNumber: invoiceDraft.invoiceNumber,
+                    billedToName: invoiceDraft.billedToName || deal.client,
+                    billedToContact: invoiceDraft.billedToContact,
+                    billedToEmail: invoiceDraft.billedToEmail,
+                    issuedLabel: dateFmt(issued),
+                    dueLabel:
+                      [invoiceDraft.terms, invoiceDraft.dueDate ? dateFmt(due) : ""]
+                        .filter(Boolean)
+                        .join(" · ") || "—",
+                    depositPercent: invoiceDraft.depositPercent,
+                    paymentNote: invoiceDraft.paymentNote,
+                    lines,
+                  });
+                  showToast("Invoice PDF downloaded");
+                } catch {
+                  showToast("Couldn’t download invoice PDF — try again");
+                }
+              }}
+            >
+              Download PDF
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => showToast("Invoice send flow coming soon")}>
+              Send
+            </button>
+          </div>
         </div>
       </div>
 
@@ -6447,9 +6493,77 @@ function ExtraScreens({
             lawyer before sending or signing.
           </p>
           <SowPreview draft={sowDraft} />
-          <button type="button" className="btn btn-primary" onClick={() => showToast("SOW signature flow coming soon")}>
-            Send for signature
-          </button>
+          <div className="btn-row" style={{ marginTop: 12 }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={async () => {
+                try {
+                  const total = parseFloat(sowDraft.total.replace(/,/g, "")) || 0;
+                  const depositPercentRaw = sowDraft.depositPercent.trim();
+                  const depositPercent = depositPercentRaw
+                    ? Math.max(0, Math.min(100, parseFloat(depositPercentRaw) || 0))
+                    : null;
+                  const depositAmount =
+                    depositPercent != null && total > 0
+                      ? Math.round(total * (depositPercent / 100) * 100) / 100
+                      : null;
+                  const balanceAmount =
+                    depositAmount != null && total > 0
+                      ? Math.round((total - depositAmount) * 100) / 100
+                      : null;
+                  const formatMoney = (n: number) => {
+                    const hasCents = Math.round(n * 100) % 100 !== 0;
+                    return n.toLocaleString("en-US", {
+                      minimumFractionDigits: hasCents ? 2 : 0,
+                      maximumFractionDigits: 2,
+                    });
+                  };
+                  const autoPaymentSchedule =
+                    depositAmount != null && balanceAmount != null && depositPercent != null
+                      ? `$${formatMoney(depositAmount)} (${depositPercent}%) on signing · $${formatMoney(balanceAmount)} on final delivery`
+                      : "";
+                  const docDateLabel = sowDraft.docDate
+                    ? new Date(`${sowDraft.docDate}T00:00:00`).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })
+                    : new Date().toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      });
+                  await downloadSowPdf({
+                    creator: sowDraft.creator,
+                    client: sowDraft.client,
+                    version: sowDraft.version,
+                    docDateLabel,
+                    projectDescription: sowDraft.projectDescription,
+                    roles: sowDraft.roles,
+                    lineItems: sowDraft.lineItems,
+                    usageRights: sowDraft.usageRights,
+                    revisions: sowDraft.revisions,
+                    totalLabel: total > 0 ? `$${fmt(Math.round(total))}` : "—",
+                    depositLabel:
+                      depositAmount != null && depositPercent != null && total > 0
+                        ? `Deposit (${depositPercent}%): $${formatMoney(depositAmount)}`
+                        : "",
+                    paymentSchedule: sowDraft.paymentSchedule.trim() || autoPaymentSchedule || "—",
+                    cancellation: sowDraft.cancellation,
+                  });
+                  showToast("Scope of work PDF downloaded");
+                } catch {
+                  showToast("Couldn’t download SOW PDF — try again");
+                }
+              }}
+            >
+              Download PDF
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => showToast("SOW signature flow coming soon")}>
+              Send for signature
+            </button>
+          </div>
         </div>
       </div>
     </>
